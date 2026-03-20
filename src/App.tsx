@@ -12,7 +12,7 @@ import {
   Github
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchCSVData, formatContext, IRData } from './services/dataService';
+import { fetchCSVData, formatContext, fetchAllCSVFromRepo, IRData } from './services/dataService';
 import { getGeminiResponse } from './services/gemini';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -57,15 +57,27 @@ export default function App() {
     setIsDataLoaded(false);
     setError(null);
     try {
-      const results = await import('./services/dataService').then(m => m.fetchAllCSVFromRepo(repoPath));
+      // URL에서 owner/repo 추출 (예: https://github.com/owner/repo -> owner/repo)
+      let cleanPath = repoPath.trim();
+      if (cleanPath.includes('github.com/')) {
+        const parts = cleanPath.split('github.com/')[1].split('/');
+        if (parts.length >= 2) {
+          cleanPath = `${parts[0]}/${parts[1]}`;
+        }
+      }
+      
+      console.log('Loading data from repo:', cleanPath);
+      const results = await fetchAllCSVFromRepo(cleanPath);
       if (results.length > 0) {
         setAllFileData(results);
         setIsDataLoaded(true);
+        console.log('Data loaded successfully:', results.length, 'files');
       } else {
-        setError('CSV 파일을 찾을 수 없습니다. 저장소 경로를 확인해 주세요.');
+        setError('CSV 파일을 찾을 수 없습니다. 저장소에 .csv 파일이 있는지 확인해 주세요.');
       }
-    } catch (err) {
-      setError('데이터 로드 중 오류가 발생했습니다.');
+    } catch (err: any) {
+      console.error('Data load error:', err);
+      setError(`데이터 로드 실패: ${err.message || '알 수 없는 오류'}`);
     }
   };
 
