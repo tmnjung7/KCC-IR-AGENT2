@@ -137,7 +137,17 @@ export default function App() {
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           <div className="px-2 py-3">
-            <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4">Loaded Files ({allFileData.length})</h2>
+            <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4 flex justify-between items-center">
+              <span>Loaded Files ({allFileData.length})</span>
+              <button 
+                onClick={loadRepoData}
+                disabled={isLoading}
+                className="hover:text-emerald-500 transition-colors p-1"
+                title="Refresh Data"
+              >
+                <TrendingUp size={12} className={cn(isLoading && "animate-spin")} />
+              </button>
+            </h2>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
               {allFileData.map((file, idx) => (
                 <div key={idx} className="flex items-center gap-3 text-[11px] text-zinc-300 bg-white/5 p-2 rounded border border-white/5">
