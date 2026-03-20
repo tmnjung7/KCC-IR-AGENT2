@@ -39,7 +39,7 @@ export default function App() {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const [repoPath, setRepoPath] = useState('tmnjung7/KCC-IR-AGENT'); 
+  const [repoPath, setRepoPath] = useState('tmnjung7/KCC-IR-AGENT2'); 
   const [allFileData, setAllFileData] = useState<{name: string, data: IRData[]}[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,10 +85,12 @@ export default function App() {
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setError(null);
     setIsLoading(true);
 
     try {
-      const context = formatContext(allFileData);
+      // 질문과 관련된 데이터만 추출하여 컨텍스트 구성 (대용량 데이터 대응)
+      const context = await import('./services/dataService').then(m => m.searchContext(allFileData, input));
       const response = await getGeminiResponse(input, context);
       
       const assistantMessage: Message = {
@@ -99,8 +101,9 @@ export default function App() {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (err) {
-      setError('AI 응답 생성 중 오류가 발생했습니다.');
+    } catch (err: any) {
+      console.error("Chat Error:", err);
+      setError(`오류 발생: ${err.message || '알 수 없는 오류가 발생했습니다.'}`);
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +118,7 @@ export default function App() {
             <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
               <BarChart3 size={20} className="text-black" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight">KCC IR AI</h1>
+            <h1 className="text-xl font-bold tracking-tight">KCC IR AGENT2</h1>
           </div>
           <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">Assistant v1.0</p>
         </div>
@@ -149,7 +152,7 @@ export default function App() {
                     value={repoPath}
                     onChange={(e) => setRepoPath(e.target.value)}
                     className="w-full bg-zinc-800/50 border border-white/10 rounded-md pl-3 pr-8 py-2 text-xs focus:outline-none focus:border-emerald-500 transition-colors"
-                    placeholder="tmnjung7/KCC-IR-AGENT"
+                    placeholder="tmnjung7/KCC-IR-AGENT2"
                   />
                   {isDataLoaded && (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2">
