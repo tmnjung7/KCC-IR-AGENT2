@@ -43,6 +43,7 @@ export default function App() {
   const [allFileData, setAllFileData] = useState<{name: string, data: IRData[]}[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -55,9 +56,10 @@ export default function App() {
   // 저장소 데이터 로드
   const loadRepoData = async () => {
     setIsDataLoaded(false);
+    setIsLoading(true); // 로딩 상태 표시
     setError(null);
     try {
-      // URL에서 owner/repo 추출 (예: https://github.com/owner/repo -> owner/repo)
+      // URL에서 owner/repo 추출
       let cleanPath = repoPath.trim();
       if (cleanPath.includes('github.com/')) {
         const parts = cleanPath.split('github.com/')[1].split('/');
@@ -67,17 +69,24 @@ export default function App() {
       }
       
       console.log('Loading data from repo:', cleanPath);
+      // fetchAllCSVFromRepo 내부에서 이미 Date.now()를 사용하지만, 
+      // 여기서 한 번 더 명시적으로 로딩 상태를 관리합니다.
       const results = await fetchAllCSVFromRepo(cleanPath);
+      
       if (results.length > 0) {
         setAllFileData(results);
         setIsDataLoaded(true);
-        console.log('Data loaded successfully:', results.length, 'files');
+        const now = new Date();
+        setLastUpdated(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        console.log('Data loaded successfully:', results.length, 'files at', now.toISOString());
       } else {
         setError('CSV 파일을 찾을 수 없습니다. 저장소에 .csv 파일이 있는지 확인해 주세요.');
       }
     } catch (err: any) {
       console.error('Data load error:', err);
       setError(`데이터 로드 실패: ${err.message || '알 수 없는 오류'}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -139,14 +148,21 @@ export default function App() {
           <div className="px-2 py-3">
             <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4 flex justify-between items-center">
               <span>Loaded Files ({allFileData.length})</span>
-              <button 
-                onClick={loadRepoData}
-                disabled={isLoading}
-                className="hover:text-emerald-500 transition-colors p-1"
-                title="Refresh Data"
-              >
-                <TrendingUp size={12} className={cn(isLoading && "animate-spin")} />
-              </button>
+              <div className="flex items-center gap-2">
+                {lastUpdated && (
+                  <span className="text-[9px] font-normal text-zinc-600 lowercase tracking-normal">
+                    Sync: {lastUpdated}
+                  </span>
+                )}
+                <button 
+                  onClick={loadRepoData}
+                  disabled={isLoading}
+                  className="hover:text-emerald-500 transition-colors p-1"
+                  title="Refresh Data"
+                >
+                  <TrendingUp size={12} className={cn(isLoading && "animate-spin")} />
+                </button>
+              </div>
             </h2>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
               {allFileData.map((file, idx) => (
@@ -192,6 +208,7 @@ export default function App() {
                   <AlertCircle size={10} /> How to use
                 </h3>
                 <ul className="text-[10px] text-zinc-400 space-y-1.5 list-disc pl-3">
+                  <li className="text-amber-400 font-bold">엑셀(.xlsx)은 지원되지 않습니다. 반드시 CSV로 변환해 주세요.</li>
                   <li>엑셀 데이터를 CSV로 저장하여 깃허브에 업로드</li>
                   <li>Raw 링크를 위 칸에 입력</li>
                   <li>실시간 질문으로 팩트 체크 (콤마/출처 자동)</li>
