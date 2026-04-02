@@ -259,7 +259,7 @@ export default function App() {
                       • <strong>API(현재 앱)</strong>: 개발용 서비스로, AI Studio에서 별도의 <strong>결제 계정(Billing)</strong>을 연결해야 유료 티어(무제한급)로 작동합니다. 개인 구독과는 별개입니다.
                     </p>
                   </li>
-                  <li><strong>할당량 초과(429) 해결:</strong> AI Studio에서 'Pay-as-you-go' 플랜을 활성화한 후 발급받은 API 키를 [Settings > Secrets]에 등록하세요.</li>
+                  <li><strong>할당량 초과(429) 해결:</strong> AI Studio에서 'Pay-as-you-go' 플랜을 활성화한 후 발급받은 API 키를 [Settings {'>'} Secrets]에 등록하세요.</li>
                   <li><strong>답변 능력 향상:</strong> 현재 최고 성능인 <span className="text-emerald-400">Gemini 3.1 Pro</span> 모델과 <span className="text-emerald-400">구글 검색</span>이 적용되어 있습니다.</li>
                 </ul>
               </div>

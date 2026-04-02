@@ -150,48 +150,60 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   const MAX_CONTEXT_LENGTH = 150000; // 컨텍스트 용량 확대
   const seenRows = new Set<string>();
 
-  for (const file of allFileData) {
+  for (let fileIdx = 0; fileIdx < allFileData.length; fileIdx++) {
+    const file = allFileData[fileIdx];
     if (!file.data || file.data.length === 0) continue;
 
     const fileNameLower = file.name.toLowerCase();
     const fileNumMatch = file.name.match(/\d+/g);
     const fileNums = fileNumMatch ? fileNumMatch : [];
     
-    // 파일명 자체가 키워드에 포함되는지 확인
+    // 파일명 자체가 키워드에 포함되는지 확인 또는 순서(1번, 2번...) 확인
     const isFileMentioned = keywords.some(k => 
       fileNameLower.includes(k) || 
       (k.match(/^\d+$/) && fileNums.includes(k))
-    ) || mentionedFileNums.some(num => fileNums.includes(num));
+    ) || 
+    mentionedFileNums.some(num => fileNums.includes(num)) ||
+    mentionedFileNums.includes((fileIdx + 1).toString()); // 1번 파일 등 순서 매칭
 
-    // 1. 헤더 찾기 로직 강화
-    let headerRowIndex = 0;
-    let maxDateCount = 0;
-    for (let i = 0; i < Math.min(15, file.data.length); i++) {
-      const row = file.data[i];
+    // 1. 다이나믹 헤더 수집 (파일 전체에서 헤더 후보군 추출)
+    const headerCandidates: {index: number, headers: any[]}[] = [];
+    file.data.forEach((row, idx) => {
       const dateCount = row.filter((cell: any) => 
-        String(cell).match(/\d{1,2}Q\d{2}/i) || String(cell).match(/20\d{2}/)
+        String(cell).match(/\d{1,2}Q\d{2}/i) || 
+        String(cell).match(/20\d{2}/) ||
+        String(cell).match(/^\d{2}년$/) ||
+        String(cell).match(/^20\d{2}년$/)
       ).length;
-      if (dateCount > maxDateCount) {
-        maxDateCount = dateCount;
-        headerRowIndex = i;
+      if (dateCount >= 2) {
+        headerCandidates.push({index: idx, headers: row});
       }
-    }
+    });
 
-    const isWideFormat = maxDateCount >= 2;
-    const headers = file.data[headerRowIndex] || [];
+    // 기본 헤더 설정 (기존 로직 호환성 유지)
+    let headerRowIndex = 0;
+    if (headerCandidates.length > 0) {
+      headerRowIndex = headerCandidates[0].index;
+    }
+    const isWideFormat = headerCandidates.length > 0;
+    const defaultHeaders = file.data[headerRowIndex] || [];
     
     // 2. 검색 및 윈도우 추출
     const relevantIndices = new Set<number>();
     
-    // "이자비용" 및 "부채비율" 특수 처리
+    // 키워드 확장 (매출, 부채, 이자 등)
     const isInterestExpenseQuery = query.includes('이자비용') || query.includes('이자');
     const isDebtRatioQuery = query.includes('부채비율') || query.includes('부채') || query.includes('비율');
+    const isSalesQuery = query.includes('매출') || query.includes('수익') || query.includes('실적');
+    const isDivisionQuery = query.includes('사업부') || query.includes('부문') || query.includes('세그먼트');
     const isQuarterQuery = query.match(/\d[qQ]/) || query.includes('분기');
     const isSumQuery = query.includes('합계') || query.includes('누계') || query.includes('합') || query.includes('더하기') || query.includes('총액');
     
     let targetKeywords = [...keywords];
     if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용');
     if (isDebtRatioQuery) targetKeywords.push('부채비율', '부채', '비율', '안정성', '자본');
+    if (isSalesQuery) targetKeywords.push('매출', '매출액', '수익', '영업수익', '실적');
+    if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment');
     if (isQuarterQuery) targetKeywords.push('4q', '3q', '2q', '1q', '분기', '실적');
     if (isSumQuery) targetKeywords.push('합계', '누계', '총액', '실적');
     
@@ -216,6 +228,12 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
         for (let i = start; i <= end; i++) {
           relevantIndices.add(i);
         }
+
+        // [추가] 매칭된 행 바로 위의 헤더 후보도 강제로 포함
+        const nearestHeader = headerCandidates
+          .filter(h => h.index <= index)
+          .sort((a, b) => b.index - a.index)[0];
+        if (nearestHeader) relevantIndices.add(nearestHeader.index);
       }
     });
 
@@ -234,9 +252,15 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       if (seenRows.has(rowKey)) return;
       seenRows.add(rowKey);
 
+      // 현재 행에 가장 가까운 상단 헤더 찾기
+      const currentHeader = headerCandidates
+        .filter(h => h.index <= idx)
+        .sort((a, b) => b.index - a.index)[0] || {index: 0, headers: defaultHeaders};
+      const headers = currentHeader.headers;
+
       let rowContext = `[파일: ${file.name}] `;
       
-      if (isWideFormat) {
+      if (isWideFormat || headers.length >= 2) {
         const matchedPairs = [];
         for (let colIdx = 0; colIdx < Math.max(headers.length, row.length); colIdx++) {
           const h = String(headers[colIdx] || '').trim();
