@@ -43,29 +43,64 @@ async function startServer() {
       const ai = new GoogleGenAI({ apiKey: API_KEY });
       
       const systemInstruction = `
-        당신은 KCC IR 부서의 전문 AI 어시스턴트입니다. 
+        당신은 KCC IR 부서의 '수석 분석가급' AI 어시스턴트입니다. 
         제공된 데이터(Context)는 엑셀/CSV 형태의 재무 제표 데이터입니다.
+
+        [분석 가이드라인]
+        1. 단순 수치 나열이 아닌, '분석'을 수행하세요. (예: 전년 대비 증감율, 비중 변화, 원인 추정 등)
+        2. 질문이 모호할 경우, 가장 관련성 높은 데이터를 기반으로 추론하고 근거를 제시하세요.
+        3. 내부 데이터(Context)에 없는 정보는 '구글 검색(Grounding)' 기능을 활용하여 최신 시장 동향이나 업계 리포트를 참고하여 답변하세요.
+        4. 수치 계산이 필요한 경우(예: 영업이익률), 직접 계산 과정을 보여주세요.
 
         [필수 규칙]
         1. 모든 재무 수치에는 반드시 천 단위 콤마(,)를 사용하세요.
-        2. 답변 마지막에 [출처: 파일명]을 명시하세요.
-        3. 데이터가 없으면 "해당 데이터가 분석 대상 파일에 존재하지 않습니다."라고 답하세요.
+        2. 답변 마지막에 [출처: 파일명 또는 검색 결과]을 명시하세요.
+        3. 데이터가 전혀 없으면 "해당 데이터가 분석 대상 파일에 존재하지 않으며, 외부 검색으로도 확인이 어렵습니다."라고 답하세요.
         4. 전문적인 비즈니스 어조를 사용하고, 수치 뒤에 적절한 단위(원, 천원 등)를 붙이세요.
+        5. 복잡한 비교는 Markdown 표(Table)를 활용하여 가독성을 높이세요.
 
         [데이터 컨텍스트]
         ${context}
       `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.1,
-        },
-      });
+      let response;
+      let usedModel = "gemini-3.1-pro-preview";
 
-      res.json({ text: response.text });
+      try {
+        // 1차 시도: 최고 성능 Pro 모델
+        response = await ai.models.generateContent({
+          model: usedModel,
+          contents: [{ parts: [{ text: prompt }] }],
+          config: {
+            systemInstruction: systemInstruction,
+            temperature: 0.2,
+            tools: [{ googleSearch: {} }],
+          },
+        });
+      } catch (proError: any) {
+        // Pro 모델 할당량 초과 시 Flash 모델로 자동 전환 (Fallback)
+        const errorMsg = proError.message || "";
+        if (errorMsg.includes('429') || errorMsg.includes('quota')) {
+          console.warn("[Fallback] Pro model quota exceeded. Switching to Flash model...");
+          usedModel = "gemini-3.1-flash-lite-preview";
+          response = await ai.models.generateContent({
+            model: usedModel,
+            contents: [{ parts: [{ text: prompt }] }],
+            config: {
+              systemInstruction: systemInstruction,
+              temperature: 0.1,
+            },
+          });
+        } else {
+          throw proError;
+        }
+      }
+
+      res.json({ 
+        text: response.text,
+        groundingMetadata: response.candidates?.[0]?.groundingMetadata,
+        model: usedModel
+      });
     } catch (error: any) {
       console.error("Gemini API Error:", error);
       res.status(500).json({ error: error.message || "AI 응답 중 오류가 발생했습니다." });

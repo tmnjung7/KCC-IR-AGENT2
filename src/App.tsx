@@ -26,6 +26,8 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  groundingMetadata?: any;
+  model?: string;
 }
 
 export default function App() {
@@ -112,19 +114,60 @@ export default function App() {
     try {
       // 질문과 관련된 데이터만 추출하여 컨텍스트 구성 (대용량 데이터 대응)
       const context = await import('./services/dataService').then(m => m.searchContext(allFileData, input));
-      const response = await getGeminiResponse(input, context);
+      const responseData = await getGeminiResponse(input, context);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response,
+        content: responseData.text || "답변을 생성할 수 없습니다.",
+        groundingMetadata: responseData.groundingMetadata,
         timestamp: new Date(),
+        model: responseData.model // 서버에서 받은 모델 정보 저장
       };
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (err: any) {
       console.error("Chat Error:", err);
-      setError(`오류 발생: ${err.message || '알 수 없는 오류가 발생했습니다.'}`);
+      let errorMessage = "오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+      
+      // 서버에서 온 에러 메시지가 JSON 형태일 수 있으므로 파싱 시도
+      let rawError = err.message || "";
+      let parsedError = rawError;
+      try {
+        // "AI 응답 중 오류가 발생했습니다: {"error":...}" 형태인 경우 JSON 부분만 추출 시도
+        const jsonMatch = rawError.match(/\{.*\}/);
+        if (jsonMatch) {
+          const json = JSON.parse(jsonMatch[0]);
+          if (json.error && typeof json.error === 'string') {
+            parsedError = json.error;
+          } else if (json.error && json.error.message) {
+            parsedError = json.error.message;
+          }
+        }
+      } catch (e) {
+        console.warn("Error parsing error JSON:", e);
+      }
+
+      if (parsedError.includes('429') || parsedError.includes('quota')) {
+        errorMessage = "현재 AI 요청량이 많아 일시적으로 제한되었습니다. 약 1분 정도 기다리신 후 다시 질문해 주시면 감사하겠습니다. (무료 티어 할당량 제한)";
+      } else if (parsedError.includes('413')) {
+        errorMessage = "데이터가 너무 방대하여 분석에 실패했습니다. 질문을 더 구체적으로(예: 특정 연도나 항목 지정) 해주세요.";
+      } else if (parsedError.includes('404')) {
+        errorMessage = "AI 모델을 찾을 수 없습니다. 시스템 설정을 확인 중입니다.";
+      } else if (parsedError.includes('500')) {
+        errorMessage = "AI 서버에 일시적인 문제가 발생했습니다. 다시 시도해 주세요.";
+      }
+      
+      setError(errorMessage);
+      
+      // 사용자에게도 메시지로 표시
+      const errorAssistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `⚠️ ${errorMessage}`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorAssistantMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -205,13 +248,14 @@ export default function App() {
               
               <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-lg">
                 <h3 className="text-[10px] font-bold text-emerald-500 uppercase mb-2 flex items-center gap-1">
-                  <AlertCircle size={10} /> How to use
+                  <AlertCircle size={10} /> How to use & FAQ
                 </h3>
                 <ul className="text-[10px] text-zinc-400 space-y-1.5 list-disc pl-3">
                   <li className="text-amber-400 font-bold">엑셀(.xlsx)은 지원되지 않습니다. 반드시 CSV로 변환해 주세요.</li>
-                  <li>엑셀 데이터를 CSV로 저장하여 깃허브에 업로드</li>
-                  <li>Raw 링크를 위 칸에 입력</li>
-                  <li>실시간 질문으로 팩트 체크 (콤마/출처 자동)</li>
+                  <li><strong>Gemini Advanced vs API:</strong> 유료 구독(Advanced)과 API 사용료는 별개입니다. API는 AI Studio에서 관리됩니다.</li>
+                  <li><strong>답변 능력 향상:</strong> 현재 최고 성능인 <span className="text-emerald-400">Gemini 3.1 Pro</span> 모델과 <span className="text-emerald-400">구글 검색</span>이 적용되어 있습니다.</li>
+                  <li>할당량 초과(429) 시 약 1분 후 다시 시도해 주세요.</li>
+                  <li>개인 API 키를 사용하면 더 쾌적하게 이용 가능합니다.</li>
                 </ul>
               </div>
             </div>
@@ -277,9 +321,34 @@ export default function App() {
                       {line}
                     </p>
                   ))}
+                  
+                  {/* Grounding Sources */}
+                  {msg.groundingMetadata?.groundingChunks && (
+                    <div className="mt-4 pt-3 border-t border-black/5">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <Search size={10} /> Search Sources
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {msg.groundingMetadata.groundingChunks.map((chunk: any, idx: number) => (
+                          chunk.web && (
+                            <a 
+                              key={idx}
+                              href={chunk.web.uri}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-1 rounded border border-emerald-100 hover:bg-emerald-100 transition-colors truncate max-w-[200px]"
+                              title={chunk.web.title}
+                            >
+                              {chunk.web.title || chunk.web.uri}
+                            </a>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <span className="text-[10px] text-zinc-400 mt-1.5 font-medium uppercase tracking-wider">
-                  {msg.role === 'user' ? 'Manager' : 'AI Assistant'} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {msg.role === 'user' ? 'Manager' : `AI Assistant ${msg.model ? `(${msg.model.includes('pro') ? 'PRO' : 'FLASH'})` : ''}`} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </motion.div>
             ))}
@@ -319,7 +388,7 @@ export default function App() {
             </button>
           </div>
           <p className="text-center text-[11px] text-zinc-400 mt-4 font-medium uppercase tracking-widest">
-            Fact-based IR Assistant powered by Gemini 2.0
+            Fact-based IR Assistant powered by Gemini 3.1 Pro & Google Search
           </p>
         </div>
       </main>

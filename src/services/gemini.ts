@@ -14,12 +14,10 @@ export const getGeminiResponse = async (prompt: string, context: string) => {
     }
 
     const data = await response.json();
-    return data.text || "답변을 생성할 수 없습니다.";
+    return data;
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    if (error.message?.includes("413")) {
-      return "데이터가 너무 방대하여 분석에 실패했습니다. 질문을 더 구체적으로(예: 특정 연도나 항목 지정) 해주세요.";
-    }
-    return `AI 응답 중 오류가 발생했습니다: ${error.message || "알 수 없는 오류"}`;
+    console.error("Gemini API Error (Service):", error);
+    // 에러를 그대로 위로 던져서 App.tsx에서 처리하게 함
+    throw error;
   }
 };

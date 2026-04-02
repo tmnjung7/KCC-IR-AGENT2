@@ -121,6 +121,17 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   const stopWords = ['파일', '파일에', '대한', '알려줘', '분석', '추이', '최근', '어때', '정보', '정보가', '있을텐데', '질문', '질문의', '이해하지', '못하고', '검색을', '못해주는데', '왜', '그럴까'];
   
   let keywords = cleanQuery.split(' ').filter(k => k.length >= 1);
+  
+  // 파일 번호 추출 (예: "1-3", "1번", "3번")
+  const fileRefMatch = query.match(/(\d+)[-~](\d+)|(\d+)번|(\d+)-(\d+)/g);
+  const mentionedFileNums: string[] = [];
+  if (fileRefMatch) {
+    fileRefMatch.forEach(m => {
+      const nums = m.match(/\d+/g);
+      if (nums) mentionedFileNums.push(...nums);
+    });
+  }
+
   keywords = keywords.map(word => {
     let processed = word;
     for (const p of particles) {
@@ -150,7 +161,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     const isFileMentioned = keywords.some(k => 
       fileNameLower.includes(k) || 
       (k.match(/^\d+$/) && fileNums.includes(k))
-    );
+    ) || mentionedFileNums.some(num => fileNums.includes(num));
 
     // 1. 헤더 찾기 로직 강화
     let headerRowIndex = 0;
@@ -172,19 +183,24 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     // 2. 검색 및 윈도우 추출
     const relevantIndices = new Set<number>();
     
-    file.data.forEach((row, index) => {
-      const rowStr = row.join(' ').toLowerCase();
-      const matchedKeywords = keywords.filter(k => rowStr.includes(k));
-      
-      if (matchedKeywords.length >= 1 || isFileMentioned) {
-        // 매칭된 행 주변 인덱스 추가 (컨텍스트 윈도우 확대: 앞 3행, 뒤 12행)
-        const start = Math.max(0, index - 3);
-        const end = Math.min(file.data.length - 1, index + 12);
-        for (let i = start; i <= end; i++) {
-          relevantIndices.add(i);
-        }
+  // "이자비용" 특수 처리
+  const isInterestExpenseQuery = query.includes('이자비용') || query.includes('이자');
+  const targetKeywords = isInterestExpenseQuery ? [...keywords, '이자비용', '이자', '금융비용', '비용'] : keywords;
+
+  file.data.forEach((row, index) => {
+    const rowStr = row.join(' ').toLowerCase();
+    // 키워드가 하나라도 포함되거나, 이자비용 쿼리인 경우 더 유연하게 매칭
+    const matchedKeywords = targetKeywords.filter(k => rowStr.includes(k));
+    
+    if (matchedKeywords.length >= 1 || isFileMentioned) {
+      // 매칭된 행 주변 인덱스 추가 (컨텍스트 윈도우 확대: 앞 5행, 뒤 15행)
+      const start = Math.max(0, index - 5);
+      const end = Math.min(file.data.length - 1, index + 15);
+      for (let i = start; i <= end; i++) {
+        relevantIndices.add(i);
       }
-    });
+    }
+  });
 
     // 3. 텍스트 변환
     Array.from(relevantIndices).sort((a, b) => a - b).forEach(idx => {
