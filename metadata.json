@@ -1,5 +1,5 @@
 {
-  "name": "KCC IR AGENT2",
-  "description": "KCC IR 부서를 위한 실시간 재무 및 공시 데이터 조회 AI 어시스턴트. 공시 자료 및 Fact Sheet 기반의 정확한 수치 답변을 제공합니다.",
+  "name": "KCC AI 주주지원 서비스",
+  "description": "KCC AI 주주 지원 서비스입니다. 재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.",
   "requestFramePermissions": []
 }

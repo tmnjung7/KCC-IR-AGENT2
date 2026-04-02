@@ -118,11 +118,11 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   const cleanQuery = query.toLowerCase().replace(/[?.,!]/g, ' ');
   
   const particles = ['은', '는', '이', '가', '을', '를', '의', '에', '와', '과', '도', '만', '에서', '부터', '까지', '년', '분기'];
-  const stopWords = ['파일', '파일에', '대한', '알려줘', '분석', '추이', '최근', '어때', '정보', '정보가', '있을텐데', '질문', '질문의', '이해하지', '못하고', '검색을', '못해주는데', '왜', '그럴까', '변화', '변화는'];
+  const stopWords = ['파일', '파일에', '대한', '알려줘', '분석', '추이', '최근', '어때', '정보', '정보가', '있을텐데', '질문', '질문의', '이해하지', '못하고', '검색을', '못해주는데', '왜', '그럴까', '변화', '변화는', '있거든', '명확하게', '사진처럼', '어떻게', '알려', '보여줘'];
   
   let keywords = cleanQuery.split(' ').filter(k => k.length >= 1);
   
-  // 파일 번호 추출 (예: "1-3", "1번", "3번")
+  // 파일 번호 추출
   const fileRefMatch = query.match(/(\d+)[-~](\d+)|(\d+)번|(\d+)-(\d+)/g);
   const mentionedFileNums: string[] = [];
   if (fileRefMatch) {
@@ -145,199 +145,154 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   
   console.log('Extracted keywords for search:', keywords);
 
-  let context = "### IR 데이터 분석 결과 ###\n\n";
-  let totalLength = 0;
-  const MAX_CONTEXT_LENGTH = 250000; // 컨텍스트 용량 대폭 확대
-  const seenRows = new Set<string>();
+  // 키워드 확장 및 동의어 처리
+  const lowerQuery = query.toLowerCase();
+  const isInterestExpenseQuery = lowerQuery.includes('이자비용') || lowerQuery.includes('이자');
+  const isDebtRatioQuery = lowerQuery.includes('부채비율') || lowerQuery.includes('부채') || lowerQuery.includes('비율') || lowerQuery.includes('debt') || lowerQuery.includes('ratio');
+  const isSalesQuery = lowerQuery.includes('매출') || lowerQuery.includes('수익') || lowerQuery.includes('실적') || lowerQuery.includes('영업이익');
+  const isDivisionQuery = lowerQuery.includes('사업부') || lowerQuery.includes('부문') || lowerQuery.includes('세그먼트') || lowerQuery.includes('건자재') || lowerQuery.includes('건재') || lowerQuery.includes('도료') || lowerQuery.includes('실리콘') || lowerQuery.includes('소재') || lowerQuery.includes('유리');
+  const isEbitdaQuery = lowerQuery.includes('ebitda') || lowerQuery.includes('ebidta') || lowerQuery.includes('에비타') || lowerQuery.includes('상각전영업이익') || lowerQuery.includes('상각전');
+  
+  let targetKeywords = [...keywords];
+  if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용', 'interest');
+  if (isDebtRatioQuery) targetKeywords.push('부채비율', '부채', '비율', '안정성', '자본', 'debt', 'ratio', 'liabilities', 'equity');
+  if (isSalesQuery) targetKeywords.push('매출', '매출액', '수익', '영업수익', '실적', '영업이익');
+  if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment', '건자재', '건축자재', '건재', '도료', '실리콘', '소재', '유리');
+  if (isEbitdaQuery) targetKeywords.push('ebitda', 'ebidta', '에비타', '상각전영업이익', '상각전', '영업이익');
 
-  // [개선] 언급된 파일을 우선적으로 처리하기 위해 인덱스 리스트 생성
-  const fileIndices = Array.from({ length: allFileData.length }, (_, i) => i);
-  const prioritizedIndices = [...fileIndices].sort((a, b) => {
-    const fileA = allFileData[a];
-    const fileB = allFileData[b];
-    const fileANumMatch = (fileA.name.match(/\d+/g) || []) as string[];
-    const fileBNumMatch = (fileB.name.match(/\d+/g) || []) as string[];
-    
-    const isAMentioned = mentionedFileNums.includes((a + 1).toString()) || 
-                         mentionedFileNums.some(num => fileANumMatch.includes(num));
-    const isBMentioned = mentionedFileNums.includes((b + 1).toString()) || 
-                         mentionedFileNums.some(num => fileBNumMatch.includes(num));
-    
-    if (isAMentioned && !isBMentioned) return -1;
-    if (!isAMentioned && isBMentioned) return 1;
-    return 0;
-  });
+  const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
+  const hasYearInQuery = yearKeywords.length > 0;
 
-  for (const fileIdx of prioritizedIndices) {
-    const file = allFileData[fileIdx];
-    if (!file.data || file.data.length === 0) continue;
+  // 모든 파일의 모든 행을 점수화하여 수집
+  interface ScoredRow {
+    fileIdx: number;
+    fileName: string;
+    rowIndex: number;
+    row: any[];
+    score: number;
+    headers: any[];
+  }
+
+  const allScoredRows: ScoredRow[] = [];
+
+  allFileData.forEach((file, fileIdx) => {
+    if (!file.data || file.data.length === 0) return;
 
     const fileNameLower = file.name.toLowerCase();
-    const fileNumMatch = file.name.match(/\d+/g);
-    const fileNums = fileNumMatch ? fileNumMatch : [];
-    
-    // 파일명 자체가 키워드에 포함되는지 확인 또는 순서(1번, 2번...) 확인
-    const isFileMentioned = keywords.some(k => 
-      fileNameLower.includes(k) || 
-      (k.match(/^\d+$/) && fileNums.includes(k))
-    ) || 
-    mentionedFileNums.some(num => fileNums.includes(num)) ||
-    mentionedFileNums.includes((fileIdx + 1).toString()); // 1번 파일 등 순서 매칭
+    const fileNumMatch = (file.name.match(/\d+/g) || []) as string[];
+    const isFileMentioned = mentionedFileNums.includes((fileIdx + 1).toString()) || 
+                           mentionedFileNums.some(num => fileNumMatch.includes(num));
 
-    // 1. 다이나믹 헤더 수집 (파일 전체에서 헤더 후보군 추출)
+    // 헤더 수집
     const headerCandidates: {index: number, headers: any[]}[] = [];
     file.data.forEach((row, idx) => {
       const rowStr = row.join(' ');
       const dateCount = row.filter((cell: any) => 
-        String(cell).match(/\d{1,2}Q\d{2}/i) || 
-        String(cell).match(/20\d{2}/) ||
-        String(cell).match(/^\d{2}년$/) ||
-        String(cell).match(/^20\d{2}년$/)
+        String(cell).match(/\d{1,2}Q\d{2}/i) || String(cell).match(/20\d{2}/)
       ).length;
-      
-      // [개선] 연도뿐만 아니라 '항목', '수치', '단위', '구분' 등 라벨이 포함되어야 헤더로 인정
       const hasHeaderLabels = rowStr.includes('항목') || rowStr.includes('수치') || rowStr.includes('단위') || rowStr.includes('구분') || rowStr.includes('계정');
-      
-      if (dateCount >= 2 && hasHeaderLabels) {
-        headerCandidates.push({index: idx, headers: row});
-      }
+      if (dateCount >= 2 && hasHeaderLabels) headerCandidates.push({index: idx, headers: row});
     });
 
-    // 기본 헤더 설정 (기존 로직 호환성 유지)
-    let headerRowIndex = 0;
-    if (headerCandidates.length > 0) {
-      headerRowIndex = headerCandidates[0].index;
-    } else {
-      // 헤더 후보가 없으면 첫 번째 행을 헤더로 가정
-      headerRowIndex = 0;
-    }
-    const isWideFormat = headerCandidates.length > 0;
-    const defaultHeaders = file.data[headerRowIndex] || [];
-    
-    // 2. 검색 및 윈도우 추출
-    const relevantIndices = new Set<number>();
-    
-    // 키워드 확장 및 동의어 처리 (IR 특화)
-    const isInterestExpenseQuery = query.includes('이자비용') || query.includes('이자');
-    const isDebtRatioQuery = query.includes('부채비율') || query.includes('부채') || query.includes('비율');
-    const isSalesQuery = query.includes('매출') || query.includes('수익') || query.includes('실적');
-    const isDivisionQuery = query.includes('사업부') || query.includes('부문') || query.includes('세그먼트') || query.includes('건자재') || query.includes('건재') || query.includes('도료') || query.includes('실리콘');
-    const isQuarterQuery = query.match(/\d[qQ]/) || query.includes('분기');
-    const isSumQuery = query.includes('합계') || query.includes('누계') || query.includes('합') || query.includes('더하기') || query.includes('총액');
-    
-    let targetKeywords = [...keywords];
-    if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용');
-    if (isDebtRatioQuery) targetKeywords.push('부채비율', '부채', '비율', '안정성', '자본');
-    if (isSalesQuery) targetKeywords.push('매출', '매출액', '수익', '영업수익', '실적', '영업이익');
-    if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment', '건자재', '건축자재', '건재', '도료', '실리콘', '소재', '유리');
-    if (isQuarterQuery) targetKeywords.push('4q', '3q', '2q', '1q', '분기', '실적');
-    if (isSumQuery) targetKeywords.push('합계', '누계', '총액', '실적');
-    
-    // 연도 키워드 (2025, 25 등) 추출 - 숫자만 포함된 단어 또는 '2025년' 형태 대응
-    const yearKeywords = keywords.map(k => {
-      const match = k.match(/(\d{2,4})/);
-      return match ? match[1] : null;
-    }).filter(Boolean) as string[];
-    const hasYearInQuery = yearKeywords.length > 0;
+    const defaultHeaders = headerCandidates.length > 0 ? headerCandidates[0].headers : (file.data[0] || []);
 
-    file.data.forEach((row, index) => {
+    file.data.forEach((row, rowIndex) => {
       const rowStr = row.join(' ').toLowerCase();
+      const cleanRowStr = rowStr.replace(/\s+/g, '');
       
-      // 1. 키워드 매칭 (항목명 중심)
-      const matchedKeywords = targetKeywords.filter(k => rowStr.includes(k));
-      
-      // 2. 연도 매칭 (현재 행 자체에 연도가 있는지)
-      const hasYearInRow = yearKeywords.some(y => rowStr.includes(y));
+      let score = 0;
 
-      // [개선] 질문에 연도가 있고, 현재 행이 속한 섹션의 헤더에 해당 연도가 있는지 확인
-      const nearestHeader = headerCandidates
-        .filter(h => h.index <= index)
-        .sort((a, b) => b.index - a.index)[0];
+      // 1. 핵심 재무 키워드 매칭 (매우 높은 가중치)
+      if (isDebtRatioQuery && (rowStr.includes('부채비율') || cleanRowStr.includes('부채비율'))) score += 1000;
+      if (isInterestExpenseQuery && (rowStr.includes('이자비용') || cleanRowStr.includes('이자비용'))) score += 1000;
+      if (isEbitdaQuery && (rowStr.includes('ebitda') || rowStr.includes('ebidta') || rowStr.includes('상각전') || cleanRowStr.includes('ebitda') || cleanRowStr.includes('ebidta') || cleanRowStr.includes('상각전'))) score += 1000;
+      if (isSalesQuery && (rowStr.includes('매출') || cleanRowStr.includes('매출액') || rowStr.includes('영업이익') || cleanRowStr.includes('영업이익'))) score += 500;
+      if (isDivisionQuery && (rowStr.includes('사업부') || rowStr.includes('부문') || rowStr.includes('건자재') || rowStr.includes('도료') || rowStr.includes('실리콘'))) score += 500;
       
-      const isYearInHeader = hasYearInQuery && nearestHeader && 
-        yearKeywords.some(y => nearestHeader.headers.join(' ').includes(y));
-
-      // 항목명이 매칭되거나, 연도가 직접 매칭되거나, 헤더에 연도가 있는 상태에서 항목이 매칭된 경우
-      if (matchedKeywords.length >= 1 || hasYearInRow || (isYearInHeader && matchedKeywords.length > 0) || isFileMentioned) {
-        // 매칭된 행 주변 인덱스 추가 (컨텍스트 윈도우 확대: 앞 10행, 뒤 20행)
-        const start = Math.max(0, index - 10);
-        const end = Math.min(file.data.length - 1, index + 25);
-        for (let i = start; i <= end; i++) {
-          relevantIndices.add(i);
+      // 2. 일반 키워드 매칭
+      targetKeywords.forEach(k => {
+        const lowerK = k.toLowerCase();
+        if (rowStr.includes(lowerK) || cleanRowStr.includes(lowerK.replace(/\s+/g, ''))) {
+          score += 100;
         }
+      });
 
-        // [추가] 매칭된 행 바로 위의 헤더 후보도 강제로 포함
-        if (nearestHeader) relevantIndices.add(nearestHeader.index);
+      // 3. 연도 매칭
+      if (yearKeywords.some(y => rowStr.includes(y))) score += 50;
+
+      // 4. 파일 언급 가중치
+      if (isFileMentioned) score += 200;
+
+      // 5. 헤더 행 자체는 점수 부여 (문맥 파악용)
+      const isHeader = headerCandidates.some(h => h.index === rowIndex);
+      if (isHeader) score += 10;
+
+      if (score > 0) {
+        const nearestHeader = headerCandidates
+          .filter(h => h.index <= rowIndex)
+          .sort((a, b) => b.index - a.index)[0] || {headers: defaultHeaders};
+
+        allScoredRows.push({
+          fileIdx,
+          fileName: file.name,
+          rowIndex,
+          row,
+          score,
+          headers: nearestHeader.headers
+        });
       }
     });
+  });
 
-    // 핵심 지표 질문 시 헤더 행은 무조건 포함 (AI가 연도를 파악할 수 있게 함)
-    if (relevantIndices.size > 0) {
-      relevantIndices.add(headerRowIndex);
-      // 혹시 헤더가 여러 줄일 수 있으므로 주변 2행도 추가
-      relevantIndices.add(Math.max(0, headerRowIndex - 1));
-      relevantIndices.add(Math.min(file.data.length - 1, headerRowIndex + 1));
-    }
-
-    // 3. 텍스트 변환 (연도 매칭 행 우선 순위 부여)
-    const sortedIndices = Array.from(relevantIndices).sort((a, b) => {
-      const rowA = file.data[a].join(' ').toLowerCase();
-      const rowB = file.data[b].join(' ').toLowerCase();
-      const hasYearA = yearKeywords.some(y => rowA.includes(y));
-      const hasYearB = yearKeywords.some(y => rowB.includes(y));
-      
-      if (hasYearA && !hasYearB) return -1;
-      if (!hasYearA && hasYearB) return 1;
-      return a - b;
-    });
-
-    sortedIndices.forEach(idx => {
-      const row = file.data[idx];
-      const rowKey = `${file.name}-${idx}-${row.join('|')}`;
-      if (seenRows.has(rowKey)) return;
-      seenRows.add(rowKey);
-
-      // 현재 행에 가장 가까운 상단 헤더 찾기
-      const currentHeader = headerCandidates
-        .filter(h => h.index <= idx)
-        .sort((a, b) => b.index - a.index)[0] || {index: 0, headers: defaultHeaders};
-      const headers = currentHeader.headers;
-
-      let rowContext = `[파일: ${file.name}] `;
-      
-      if (isWideFormat || headers.length >= 2) {
-        const matchedPairs = [];
-        for (let colIdx = 0; colIdx < Math.max(headers.length, row.length); colIdx++) {
-          const h = String(headers[colIdx] || '').trim();
-          const v = String(row[colIdx] || '').trim();
-          if (h && v) matchedPairs.push(`${h}: ${v}`);
-        }
-        
-        if (matchedPairs.length > 0) {
-          rowContext += `항목: ${row[0] || row[1] || '데이터'} | ${matchedPairs.join(' | ')}\n`;
-        } else {
-          // 매칭된 쌍이 없으면 원본 행 그대로 전달 (안전 장치)
-          rowContext += `데이터: ${row.join(' | ')}\n`;
-        }
-      } else {
-        const matchedPairs = [];
-        for (let colIdx = 0; colIdx < Math.min(headers.length, row.length); colIdx++) {
-          const h = String(headers[colIdx] || '').trim();
-          const v = String(row[colIdx] || '').trim();
-          if (h && v) matchedPairs.push(`${h}: ${v}`);
-        }
-        rowContext += `정보: ${matchedPairs.join(' | ')}\n`;
-      }
-
-      if (totalLength + rowContext.length < MAX_CONTEXT_LENGTH) {
-        context += rowContext;
-        totalLength += rowContext.length;
-      }
-    });
+  // 점수 순으로 정렬
+  allScoredRows.sort((a, b) => b.score - a.score);
+  
+  if (allScoredRows.length > 0) {
+    console.log('Top 5 scored rows:', allScoredRows.slice(0, 5).map(r => ({
+      file: r.fileName,
+      score: r.score,
+      row: r.row.slice(0, 3)
+    })));
   }
 
-  if (totalLength === 0 || context === "### IR 데이터 분석 결과 ###\n\n") {
-    return "질문과 관련된 데이터를 찾을 수 없습니다. 키워드(예: 도료, 실리콘, 매출액)를 명확히 포함해 주세요.";
+  let context = "### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###\n\n";
+  let totalLength = 0;
+  const MAX_CONTEXT_LENGTH = 250000;
+  const seenRows = new Set<string>();
+
+  // 상위 점수 행들부터 컨텍스트에 추가
+  for (const item of allScoredRows) {
+    const rowKey = `${item.fileName}-${item.rowIndex}-${item.row.join('|')}`;
+    if (seenRows.has(rowKey)) continue;
+    seenRows.add(rowKey);
+
+    let rowContext = `[파일: ${item.fileName}] `;
+    const headers = item.headers;
+    const row = item.row;
+
+    const matchedPairs = [];
+    for (let colIdx = 0; colIdx < Math.max(headers.length, row.length); colIdx++) {
+      const h = String(headers[colIdx] || '').trim();
+      const v = String(row[colIdx] || '').trim();
+      if (h && v) matchedPairs.push(`${h}: ${v}`);
+    }
+
+    if (matchedPairs.length > 0) {
+      rowContext += `항목: ${row[0] || row[1] || '데이터'} | ${matchedPairs.join(' | ')}\n`;
+    } else {
+      rowContext += `데이터: ${row.join(' | ')}\n`;
+    }
+
+    if (totalLength + rowContext.length < MAX_CONTEXT_LENGTH) {
+      context += rowContext;
+      totalLength += rowContext.length;
+    } else {
+      break;
+    }
+  }
+
+  if (totalLength === 0 || context.length < 50) {
+    return "질문과 관련된 데이터를 찾을 수 없습니다. 키워드(예: 부채비율, 매출액)를 명확히 포함해 주세요.";
   }
 
   return context;

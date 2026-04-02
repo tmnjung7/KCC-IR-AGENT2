@@ -4,6 +4,13 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* KCC Brand Colors */
+  --color-kcc-navy: #003399;
+  --color-kcc-sky: #00AEEF;
+  --color-kcc-light: #F8F9FA;
+  --color-kcc-dark: #151619;
+  --color-kcc-gray: #666666;
 }
 
 body {

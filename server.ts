@@ -12,6 +12,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  console.log(`[Server] NODE_ENV is: ${process.env.NODE_ENV}`);
+
   app.use(express.json({ limit: '10mb' }));
 
   // API routes
@@ -23,6 +25,7 @@ async function startServer() {
     
     // If the default key is the placeholder "AI Studio Free Tier", use the custom API_KEY instead
     if (!rawKey || rawKey.includes("Free Tier") || rawKey.length < 20) {
+      console.log(`[Auth] GEMINI_API_KEY is placeholder or missing. Trying API_KEY from Secrets...`);
       rawKey = process.env.API_KEY || "";
     }
 
@@ -49,9 +52,10 @@ async function startServer() {
         [분석 가이드라인]
         1. 당신은 KCC의 IR(Investor Relations) 담당자입니다.
         2. 내부 데이터(Context)를 최우선으로 분석하고, 수치 데이터는 반드시 Context에서 추출하여 답변하세요.
-        3. 질문에 특정 연도(예: 2025년)가 포함되어 있다면, Context에서 해당 연도 데이터를 반드시 찾아보고, 단 하나의 데이터라도 있다면 이를 바탕으로 답변하세요. "데이터가 없다"고 말하기 전에 Context를 다시 한번 꼼꼼히 확인하세요.
-        4. 내부 데이터(Context)에 없는 정보는 '구글 검색(Grounding)' 기능을 활용하여 최신 시장 동향이나 업계 리포트를 참고하여 답변하세요.
-        5. 수치 계산이 필요한 경우(예: 영업이익률, 연도별 누계 합, 성장률 등), 반드시 직접 계산 과정을 상세히 보여주세요. (예: 1Q + 2Q + 3Q + 4Q = 합계)
+        3. 질문에 특정 연도(예: 2025년)나 특정 항목(예: 부채비율)이 포함되어 있다면, Context에서 해당 데이터를 반드시 찾아보고, 단 하나의 데이터라도 있다면 이를 바탕으로 답변하세요. 
+        4. "데이터가 없다"고 말하기 전에 Context를 최소 3번 이상 다시 확인하세요. 특히 '부채비율', '매출액', '영업이익', 'EBITDA(상각전영업이익)' 등 핵심 지표는 표의 행이나 열에 흩어져 있을 수 있으니 꼼꼼히 조합하세요.
+        5. 사용자가 특정 파일(예: 4번 파일)을 지목했다면, 해당 파일 섹션의 데이터를 최우선적으로 정밀 분석하세요.
+        6. 내부 데이터(Context)에 없는 정보는 '구글 검색(Grounding)' 기능을 활용하되, 내부 데이터와 외부 데이터가 충돌할 경우 내부 데이터를 우선시하세요.
 
         [필수 규칙]
         1. 모든 재무 수치에는 반드시 천 단위 콤마(,)를 사용하세요.
