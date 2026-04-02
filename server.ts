@@ -16,7 +16,7 @@ async function startServer() {
 
   // API routes
   app.post("/api/chat", async (req, res) => {
-    const { prompt, context } = req.body;
+    const { prompt, context, model } = req.body;
     
     // Get key and clean it thoroughly
     let rawKey = process.env.GEMINI_API_KEY || "";
@@ -47,10 +47,11 @@ async function startServer() {
         제공된 데이터(Context)는 엑셀/CSV 형태의 재무 제표 데이터입니다.
 
         [분석 가이드라인]
-        1. 단순 수치 나열이 아닌, '분석'을 수행하세요. (예: 전년 대비 증감율, 비중 변화, 원인 추정 등)
-        2. 질문이 모호할 경우, 가장 관련성 높은 데이터를 기반으로 추론하고 근거를 제시하세요.
-        3. 내부 데이터(Context)에 없는 정보는 '구글 검색(Grounding)' 기능을 활용하여 최신 시장 동향이나 업계 리포트를 참고하여 답변하세요.
-        4. 수치 계산이 필요한 경우(예: 영업이익률, 연도별 누계 합, 성장률 등), 반드시 직접 계산 과정을 상세히 보여주세요. (예: 1Q + 2Q + 3Q + 4Q = 합계)
+        1. 당신은 KCC의 IR(Investor Relations) 담당자입니다.
+        2. 내부 데이터(Context)를 최우선으로 분석하고, 수치 데이터는 반드시 Context에서 추출하여 답변하세요.
+        3. 질문에 특정 연도(예: 2025년)가 포함되어 있다면, Context에서 해당 연도 데이터를 반드시 찾아보고, 단 하나의 데이터라도 있다면 이를 바탕으로 답변하세요. "데이터가 없다"고 말하기 전에 Context를 다시 한번 꼼꼼히 확인하세요.
+        4. 내부 데이터(Context)에 없는 정보는 '구글 검색(Grounding)' 기능을 활용하여 최신 시장 동향이나 업계 리포트를 참고하여 답변하세요.
+        5. 수치 계산이 필요한 경우(예: 영업이익률, 연도별 누계 합, 성장률 등), 반드시 직접 계산 과정을 상세히 보여주세요. (예: 1Q + 2Q + 3Q + 4Q = 합계)
 
         [필수 규칙]
         1. 모든 재무 수치에는 반드시 천 단위 콤마(,)를 사용하세요.
@@ -64,7 +65,7 @@ async function startServer() {
       `;
 
       let response;
-      let usedModel = "gemini-3.1-pro-preview";
+      let usedModel = model === 'flash' ? "gemini-3-flash-preview" : "gemini-3.1-pro-preview";
 
       const generateWithRetry = async (modelName: string, maxRetries = 1) => {
         for (let i = 0; i <= maxRetries; i++) {

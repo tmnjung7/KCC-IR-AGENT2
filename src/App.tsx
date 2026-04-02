@@ -46,6 +46,7 @@ export default function App() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<'pro' | 'flash'>('pro');
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -114,7 +115,7 @@ export default function App() {
     try {
       // 질문과 관련된 데이터만 추출하여 컨텍스트 구성 (대용량 데이터 대응)
       const context = await import('./services/dataService').then(m => m.searchContext(allFileData, input));
-      const responseData = await getGeminiResponse(input, context);
+      const responseData = await getGeminiResponse(input, context, selectedModel);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -285,7 +286,36 @@ export default function App() {
               <span>Real-time IR Support</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          
+          <div className="flex items-center gap-6">
+            {/* Model Switcher */}
+            <div className="flex items-center bg-zinc-100 p-1 rounded-xl border border-black/5">
+              <button
+                onClick={() => setSelectedModel('pro')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  selectedModel === 'pro' 
+                    ? "bg-white text-emerald-600 shadow-sm ring-1 ring-black/5" 
+                    : "text-zinc-500 hover:text-zinc-700"
+                )}
+              >
+                <div className={cn("w-1.5 h-1.5 rounded-full", selectedModel === 'pro' ? "bg-emerald-500" : "bg-zinc-300")} />
+                PRO (Detailed)
+              </button>
+              <button
+                onClick={() => setSelectedModel('flash')}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  selectedModel === 'flash' 
+                    ? "bg-white text-amber-600 shadow-sm ring-1 ring-black/5" 
+                    : "text-zinc-500 hover:text-zinc-700"
+                )}
+              >
+                <div className={cn("w-1.5 h-1.5 rounded-full", selectedModel === 'flash' ? "bg-amber-500" : "bg-zinc-300")} />
+                FLASH (Fast)
+              </button>
+            </div>
+
             {error && (
               <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 px-3 py-1.5 rounded-md border border-amber-100">
                 <AlertCircle size={16} />

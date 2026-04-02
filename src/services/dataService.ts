@@ -117,8 +117,8 @@ export const formatContext = (allFileData: {name: string, data: any[]}[]): strin
 export const searchContext = (allFileData: {name: string, data: any[]}[], query: string): string => {
   const cleanQuery = query.toLowerCase().replace(/[?.,!]/g, ' ');
   
-  const particles = ['은', '는', '이', '가', '을', '를', '의', '에', '와', '과', '도', '만', '에서', '부터', '까지'];
-  const stopWords = ['파일', '파일에', '대한', '알려줘', '분석', '추이', '최근', '어때', '정보', '정보가', '있을텐데', '질문', '질문의', '이해하지', '못하고', '검색을', '못해주는데', '왜', '그럴까'];
+  const particles = ['은', '는', '이', '가', '을', '를', '의', '에', '와', '과', '도', '만', '에서', '부터', '까지', '년', '분기'];
+  const stopWords = ['파일', '파일에', '대한', '알려줘', '분석', '추이', '최근', '어때', '정보', '정보가', '있을텐데', '질문', '질문의', '이해하지', '못하고', '검색을', '못해주는데', '왜', '그럴까', '변화', '변화는'];
   
   let keywords = cleanQuery.split(' ').filter(k => k.length >= 1);
   
@@ -147,10 +147,28 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
 
   let context = "### IR 데이터 분석 결과 ###\n\n";
   let totalLength = 0;
-  const MAX_CONTEXT_LENGTH = 150000; // 컨텍스트 용량 확대
+  const MAX_CONTEXT_LENGTH = 250000; // 컨텍스트 용량 대폭 확대
   const seenRows = new Set<string>();
 
-  for (let fileIdx = 0; fileIdx < allFileData.length; fileIdx++) {
+  // [개선] 언급된 파일을 우선적으로 처리하기 위해 인덱스 리스트 생성
+  const fileIndices = Array.from({ length: allFileData.length }, (_, i) => i);
+  const prioritizedIndices = [...fileIndices].sort((a, b) => {
+    const fileA = allFileData[a];
+    const fileB = allFileData[b];
+    const fileANumMatch = (fileA.name.match(/\d+/g) || []) as string[];
+    const fileBNumMatch = (fileB.name.match(/\d+/g) || []) as string[];
+    
+    const isAMentioned = mentionedFileNums.includes((a + 1).toString()) || 
+                         mentionedFileNums.some(num => fileANumMatch.includes(num));
+    const isBMentioned = mentionedFileNums.includes((b + 1).toString()) || 
+                         mentionedFileNums.some(num => fileBNumMatch.includes(num));
+    
+    if (isAMentioned && !isBMentioned) return -1;
+    if (!isAMentioned && isBMentioned) return 1;
+    return 0;
+  });
+
+  for (const fileIdx of prioritizedIndices) {
     const file = allFileData[fileIdx];
     if (!file.data || file.data.length === 0) continue;
 
@@ -169,13 +187,18 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     // 1. 다이나믹 헤더 수집 (파일 전체에서 헤더 후보군 추출)
     const headerCandidates: {index: number, headers: any[]}[] = [];
     file.data.forEach((row, idx) => {
+      const rowStr = row.join(' ');
       const dateCount = row.filter((cell: any) => 
         String(cell).match(/\d{1,2}Q\d{2}/i) || 
         String(cell).match(/20\d{2}/) ||
         String(cell).match(/^\d{2}년$/) ||
         String(cell).match(/^20\d{2}년$/)
       ).length;
-      if (dateCount >= 2) {
+      
+      // [개선] 연도뿐만 아니라 '항목', '수치', '단위', '구분' 등 라벨이 포함되어야 헤더로 인정
+      const hasHeaderLabels = rowStr.includes('항목') || rowStr.includes('수치') || rowStr.includes('단위') || rowStr.includes('구분') || rowStr.includes('계정');
+      
+      if (dateCount >= 2 && hasHeaderLabels) {
         headerCandidates.push({index: idx, headers: row});
       }
     });
@@ -184,6 +207,9 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     let headerRowIndex = 0;
     if (headerCandidates.length > 0) {
       headerRowIndex = headerCandidates[0].index;
+    } else {
+      // 헤더 후보가 없으면 첫 번째 행을 헤더로 가정
+      headerRowIndex = 0;
     }
     const isWideFormat = headerCandidates.length > 0;
     const defaultHeaders = file.data[headerRowIndex] || [];
@@ -195,7 +221,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     const isInterestExpenseQuery = query.includes('이자비용') || query.includes('이자');
     const isDebtRatioQuery = query.includes('부채비율') || query.includes('부채') || query.includes('비율');
     const isSalesQuery = query.includes('매출') || query.includes('수익') || query.includes('실적');
-    const isDivisionQuery = query.includes('사업부') || query.includes('부문') || query.includes('세그먼트') || query.includes('건자재') || query.includes('도료') || query.includes('실리콘');
+    const isDivisionQuery = query.includes('사업부') || query.includes('부문') || query.includes('세그먼트') || query.includes('건자재') || query.includes('건재') || query.includes('도료') || query.includes('실리콘');
     const isQuarterQuery = query.match(/\d[qQ]/) || query.includes('분기');
     const isSumQuery = query.includes('합계') || query.includes('누계') || query.includes('합') || query.includes('더하기') || query.includes('총액');
     
@@ -207,8 +233,11 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     if (isQuarterQuery) targetKeywords.push('4q', '3q', '2q', '1q', '분기', '실적');
     if (isSumQuery) targetKeywords.push('합계', '누계', '총액', '실적');
     
-    // 연도 키워드 (2025, 25 등) 추출
-    const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
+    // 연도 키워드 (2025, 25 등) 추출 - 숫자만 포함된 단어 또는 '2025년' 형태 대응
+    const yearKeywords = keywords.map(k => {
+      const match = k.match(/(\d{2,4})/);
+      return match ? match[1] : null;
+    }).filter(Boolean) as string[];
     const hasYearInQuery = yearKeywords.length > 0;
 
     file.data.forEach((row, index) => {
@@ -250,8 +279,19 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       relevantIndices.add(Math.min(file.data.length - 1, headerRowIndex + 1));
     }
 
-    // 3. 텍스트 변환
-    Array.from(relevantIndices).sort((a, b) => a - b).forEach(idx => {
+    // 3. 텍스트 변환 (연도 매칭 행 우선 순위 부여)
+    const sortedIndices = Array.from(relevantIndices).sort((a, b) => {
+      const rowA = file.data[a].join(' ').toLowerCase();
+      const rowB = file.data[b].join(' ').toLowerCase();
+      const hasYearA = yearKeywords.some(y => rowA.includes(y));
+      const hasYearB = yearKeywords.some(y => rowB.includes(y));
+      
+      if (hasYearA && !hasYearB) return -1;
+      if (!hasYearA && hasYearB) return 1;
+      return a - b;
+    });
+
+    sortedIndices.forEach(idx => {
       const row = file.data[idx];
       const rowKey = `${file.name}-${idx}-${row.join('|')}`;
       if (seenRows.has(rowKey)) return;
@@ -270,9 +310,15 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
         for (let colIdx = 0; colIdx < Math.max(headers.length, row.length); colIdx++) {
           const h = String(headers[colIdx] || '').trim();
           const v = String(row[colIdx] || '').trim();
-          if (h && v && h !== v) matchedPairs.push(`${h}: ${v}`);
+          if (h && v) matchedPairs.push(`${h}: ${v}`);
         }
-        rowContext += `항목: ${row[0] || row[1] || '데이터'} | ${matchedPairs.join(' | ')}\n`;
+        
+        if (matchedPairs.length > 0) {
+          rowContext += `항목: ${row[0] || row[1] || '데이터'} | ${matchedPairs.join(' | ')}\n`;
+        } else {
+          // 매칭된 쌍이 없으면 원본 행 그대로 전달 (안전 장치)
+          rowContext += `데이터: ${row.join(' | ')}\n`;
+        }
       } else {
         const matchedPairs = [];
         for (let colIdx = 0; colIdx < Math.min(headers.length, row.length); colIdx++) {

@@ -1,11 +1,11 @@
-export const getGeminiResponse = async (prompt: string, context: string) => {
+export const getGeminiResponse = async (prompt: string, context: string, model: 'pro' | 'flash' = 'pro') => {
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prompt, context }),
+      body: JSON.stringify({ prompt, context, model }),
     });
 
     if (!response.ok) {
