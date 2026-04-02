@@ -50,7 +50,7 @@ async function startServer() {
         1. 단순 수치 나열이 아닌, '분석'을 수행하세요. (예: 전년 대비 증감율, 비중 변화, 원인 추정 등)
         2. 질문이 모호할 경우, 가장 관련성 높은 데이터를 기반으로 추론하고 근거를 제시하세요.
         3. 내부 데이터(Context)에 없는 정보는 '구글 검색(Grounding)' 기능을 활용하여 최신 시장 동향이나 업계 리포트를 참고하여 답변하세요.
-        4. 수치 계산이 필요한 경우(예: 영업이익률), 직접 계산 과정을 보여주세요.
+        4. 수치 계산이 필요한 경우(예: 영업이익률, 연도별 누계 합, 성장률 등), 반드시 직접 계산 과정을 상세히 보여주세요. (예: 1Q + 2Q + 3Q + 4Q = 합계)
 
         [필수 규칙]
         1. 모든 재무 수치에는 반드시 천 단위 콤마(,)를 사용하세요.
@@ -66,29 +66,46 @@ async function startServer() {
       let response;
       let usedModel = "gemini-3.1-pro-preview";
 
+      const generateWithRetry = async (modelName: string, maxRetries = 1) => {
+        for (let i = 0; i <= maxRetries; i++) {
+          try {
+            return await ai.models.generateContent({
+              model: modelName,
+              contents: [{ parts: [{ text: prompt }] }],
+              config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.2,
+                tools: [{ googleSearch: {} }],
+              },
+            });
+          } catch (err: any) {
+            const errorMsg = err.message || "";
+            if ((errorMsg.includes('429') || errorMsg.includes('quota')) && i < maxRetries) {
+              console.warn(`[Quota] 429 error on ${modelName}. Retrying in 2s...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              continue;
+            }
+            throw err;
+          }
+        }
+      };
+
       try {
         // 1차 시도: 최고 성능 Pro 모델
-        response = await ai.models.generateContent({
-          model: usedModel,
-          contents: [{ parts: [{ text: prompt }] }],
-          config: {
-            systemInstruction: systemInstruction,
-            temperature: 0.2,
-            tools: [{ googleSearch: {} }],
-          },
-        });
+        response = await generateWithRetry(usedModel);
       } catch (proError: any) {
         // Pro 모델 할당량 초과 시 Flash 모델로 자동 전환 (Fallback)
         const errorMsg = proError.message || "";
         if (errorMsg.includes('429') || errorMsg.includes('quota')) {
           console.warn("[Fallback] Pro model quota exceeded. Switching to Flash model...");
-          usedModel = "gemini-3.1-flash-lite-preview";
+          usedModel = "gemini-3-flash-preview";
           response = await ai.models.generateContent({
             model: usedModel,
             contents: [{ parts: [{ text: prompt }] }],
             config: {
               systemInstruction: systemInstruction,
               temperature: 0.1,
+              tools: [{ googleSearch: {} }],
             },
           });
         } else {

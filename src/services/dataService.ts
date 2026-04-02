@@ -183,24 +183,49 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     // 2. 검색 및 윈도우 추출
     const relevantIndices = new Set<number>();
     
-  // "이자비용" 특수 처리
-  const isInterestExpenseQuery = query.includes('이자비용') || query.includes('이자');
-  const targetKeywords = isInterestExpenseQuery ? [...keywords, '이자비용', '이자', '금융비용', '비용'] : keywords;
-
-  file.data.forEach((row, index) => {
-    const rowStr = row.join(' ').toLowerCase();
-    // 키워드가 하나라도 포함되거나, 이자비용 쿼리인 경우 더 유연하게 매칭
-    const matchedKeywords = targetKeywords.filter(k => rowStr.includes(k));
+    // "이자비용" 및 "부채비율" 특수 처리
+    const isInterestExpenseQuery = query.includes('이자비용') || query.includes('이자');
+    const isDebtRatioQuery = query.includes('부채비율') || query.includes('부채') || query.includes('비율');
+    const isQuarterQuery = query.match(/\d[qQ]/) || query.includes('분기');
+    const isSumQuery = query.includes('합계') || query.includes('누계') || query.includes('합') || query.includes('더하기') || query.includes('총액');
     
-    if (matchedKeywords.length >= 1 || isFileMentioned) {
-      // 매칭된 행 주변 인덱스 추가 (컨텍스트 윈도우 확대: 앞 5행, 뒤 15행)
-      const start = Math.max(0, index - 5);
-      const end = Math.min(file.data.length - 1, index + 15);
-      for (let i = start; i <= end; i++) {
-        relevantIndices.add(i);
+    let targetKeywords = [...keywords];
+    if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용');
+    if (isDebtRatioQuery) targetKeywords.push('부채비율', '부채', '비율', '안정성', '자본');
+    if (isQuarterQuery) targetKeywords.push('4q', '3q', '2q', '1q', '분기', '실적');
+    if (isSumQuery) targetKeywords.push('합계', '누계', '총액', '실적');
+    
+    // 연도 키워드 (2025, 25 등) 추출
+    const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
+
+    file.data.forEach((row, index) => {
+      const rowStr = row.join(' ').toLowerCase();
+      
+      // 1. 키워드 매칭 (항목명 중심 - 연도와 상관없이 항목이 맞으면 일단 수집)
+      const matchedKeywords = targetKeywords.filter(k => rowStr.includes(k));
+      
+      // 2. 연도 매칭 (헤더나 데이터에 연도가 있는지)
+      const hasYearMatch = yearKeywords.length > 0 && yearKeywords.some(y => rowStr.includes(y));
+
+      // 항목명이 매칭되거나, 연도가 매칭되거나, 파일이 직접 언급된 경우
+      // (기존의 AND 조건을 OR 조건으로 완화하여 검색 누락 방지)
+      if (matchedKeywords.length >= 1 || hasYearMatch || isFileMentioned) {
+        // 매칭된 행 주변 인덱스 추가 (컨텍스트 윈도우 확대: 앞 10행, 뒤 20행)
+        const start = Math.max(0, index - 10);
+        const end = Math.min(file.data.length - 1, index + 25);
+        for (let i = start; i <= end; i++) {
+          relevantIndices.add(i);
+        }
       }
+    });
+
+    // 핵심 지표 질문 시 헤더 행은 무조건 포함 (AI가 연도를 파악할 수 있게 함)
+    if (relevantIndices.size > 0) {
+      relevantIndices.add(headerRowIndex);
+      // 혹시 헤더가 여러 줄일 수 있으므로 주변 2행도 추가
+      relevantIndices.add(Math.max(0, headerRowIndex - 1));
+      relevantIndices.add(Math.min(file.data.length - 1, headerRowIndex + 1));
     }
-  });
 
     // 3. 텍스트 변환
     Array.from(relevantIndices).sort((a, b) => a - b).forEach(idx => {

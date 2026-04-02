@@ -252,10 +252,15 @@ export default function App() {
                 </h3>
                 <ul className="text-[10px] text-zinc-400 space-y-1.5 list-disc pl-3">
                   <li className="text-amber-400 font-bold">엑셀(.xlsx)은 지원되지 않습니다. 반드시 CSV로 변환해 주세요.</li>
-                  <li><strong>Gemini Advanced vs API:</strong> 유료 구독(Advanced)과 API 사용료는 별개입니다. API는 AI Studio에서 관리됩니다.</li>
+                  <li>
+                    <strong>Gemini Advanced vs API:</strong> 
+                    <p className="pl-2 mt-1 text-zinc-300">
+                      • <strong>Advanced($20/월)</strong>: 개인 대화용 구독 서비스입니다.<br/>
+                      • <strong>API(현재 앱)</strong>: 개발용 서비스로, AI Studio에서 별도의 <strong>결제 계정(Billing)</strong>을 연결해야 유료 티어(무제한급)로 작동합니다. 개인 구독과는 별개입니다.
+                    </p>
+                  </li>
+                  <li><strong>할당량 초과(429) 해결:</strong> AI Studio에서 'Pay-as-you-go' 플랜을 활성화한 후 발급받은 API 키를 [Settings > Secrets]에 등록하세요.</li>
                   <li><strong>답변 능력 향상:</strong> 현재 최고 성능인 <span className="text-emerald-400">Gemini 3.1 Pro</span> 모델과 <span className="text-emerald-400">구글 검색</span>이 적용되어 있습니다.</li>
-                  <li>할당량 초과(429) 시 약 1분 후 다시 시도해 주세요.</li>
-                  <li>개인 API 키를 사용하면 더 쾌적하게 이용 가능합니다.</li>
                 </ul>
               </div>
             </div>
