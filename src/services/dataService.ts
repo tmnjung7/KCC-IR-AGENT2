@@ -191,37 +191,45 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     // 2. 검색 및 윈도우 추출
     const relevantIndices = new Set<number>();
     
-    // 키워드 확장 (매출, 부채, 이자 등)
+    // 키워드 확장 및 동의어 처리 (IR 특화)
     const isInterestExpenseQuery = query.includes('이자비용') || query.includes('이자');
     const isDebtRatioQuery = query.includes('부채비율') || query.includes('부채') || query.includes('비율');
     const isSalesQuery = query.includes('매출') || query.includes('수익') || query.includes('실적');
-    const isDivisionQuery = query.includes('사업부') || query.includes('부문') || query.includes('세그먼트');
+    const isDivisionQuery = query.includes('사업부') || query.includes('부문') || query.includes('세그먼트') || query.includes('건자재') || query.includes('도료') || query.includes('실리콘');
     const isQuarterQuery = query.match(/\d[qQ]/) || query.includes('분기');
     const isSumQuery = query.includes('합계') || query.includes('누계') || query.includes('합') || query.includes('더하기') || query.includes('총액');
     
     let targetKeywords = [...keywords];
     if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용');
     if (isDebtRatioQuery) targetKeywords.push('부채비율', '부채', '비율', '안정성', '자본');
-    if (isSalesQuery) targetKeywords.push('매출', '매출액', '수익', '영업수익', '실적');
-    if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment');
+    if (isSalesQuery) targetKeywords.push('매출', '매출액', '수익', '영업수익', '실적', '영업이익');
+    if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment', '건자재', '건축자재', '건재', '도료', '실리콘', '소재', '유리');
     if (isQuarterQuery) targetKeywords.push('4q', '3q', '2q', '1q', '분기', '실적');
     if (isSumQuery) targetKeywords.push('합계', '누계', '총액', '실적');
     
     // 연도 키워드 (2025, 25 등) 추출
     const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
+    const hasYearInQuery = yearKeywords.length > 0;
 
     file.data.forEach((row, index) => {
       const rowStr = row.join(' ').toLowerCase();
       
-      // 1. 키워드 매칭 (항목명 중심 - 연도와 상관없이 항목이 맞으면 일단 수집)
+      // 1. 키워드 매칭 (항목명 중심)
       const matchedKeywords = targetKeywords.filter(k => rowStr.includes(k));
       
-      // 2. 연도 매칭 (헤더나 데이터에 연도가 있는지)
-      const hasYearMatch = yearKeywords.length > 0 && yearKeywords.some(y => rowStr.includes(y));
+      // 2. 연도 매칭 (현재 행 자체에 연도가 있는지)
+      const hasYearInRow = yearKeywords.some(y => rowStr.includes(y));
 
-      // 항목명이 매칭되거나, 연도가 매칭되거나, 파일이 직접 언급된 경우
-      // (기존의 AND 조건을 OR 조건으로 완화하여 검색 누락 방지)
-      if (matchedKeywords.length >= 1 || hasYearMatch || isFileMentioned) {
+      // [개선] 질문에 연도가 있고, 현재 행이 속한 섹션의 헤더에 해당 연도가 있는지 확인
+      const nearestHeader = headerCandidates
+        .filter(h => h.index <= index)
+        .sort((a, b) => b.index - a.index)[0];
+      
+      const isYearInHeader = hasYearInQuery && nearestHeader && 
+        yearKeywords.some(y => nearestHeader.headers.join(' ').includes(y));
+
+      // 항목명이 매칭되거나, 연도가 직접 매칭되거나, 헤더에 연도가 있는 상태에서 항목이 매칭된 경우
+      if (matchedKeywords.length >= 1 || hasYearInRow || (isYearInHeader && matchedKeywords.length > 0) || isFileMentioned) {
         // 매칭된 행 주변 인덱스 추가 (컨텍스트 윈도우 확대: 앞 10행, 뒤 20행)
         const start = Math.max(0, index - 10);
         const end = Math.min(file.data.length - 1, index + 25);
@@ -230,9 +238,6 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
         }
 
         // [추가] 매칭된 행 바로 위의 헤더 후보도 강제로 포함
-        const nearestHeader = headerCandidates
-          .filter(h => h.index <= index)
-          .sort((a, b) => b.index - a.index)[0];
         if (nearestHeader) relevantIndices.add(nearestHeader.index);
       }
     });
