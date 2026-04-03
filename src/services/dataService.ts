@@ -11,10 +11,9 @@ export interface IRData {
 
 export const fetchCSVData = async (url: string): Promise<any[]> => {
   try {
-    // Use server-side proxy
-    const proxyUrl = `/api/proxy-csv?url=${encodeURIComponent(url)}&t=${Date.now()}`;
-    const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error('Failed to fetch CSV via proxy');
+    // Fetch directly to avoid server IP rate limits
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch CSV');
     const csvText = await response.text();
     
     return new Promise((resolve, reject) => {
@@ -38,14 +37,14 @@ export const fetchCSVData = async (url: string): Promise<any[]> => {
 // 깃허브 저장소 내의 모든 CSV 파일 목록을 가져오는 함수
 export const fetchAllCSVFromRepo = async (repoPath: string): Promise<{name: string, data: any[]}[]> => {
   try {
-    // Use server-side proxy
-    const apiUrl = `/api/repo-contents?repoPath=${encodeURIComponent(repoPath)}&t=${Date.now()}`;
-    console.log('Fetching from Proxy API:', apiUrl);
+    // Fetch directly from GitHub API to avoid server IP rate limits
+    const apiUrl = `https://api.github.com/repos/${repoPath}/contents`;
+    console.log('Fetching from GitHub API directly:', apiUrl);
     
     const response = await fetch(apiUrl);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Proxy API 오류: ${response.status}`);
+      throw new Error(errorData.message || `GitHub API 오류: ${response.status}`);
     }
     
     const files = await response.json();
