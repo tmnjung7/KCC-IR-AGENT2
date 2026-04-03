@@ -144,6 +144,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   const isSalesQuery = lowerQuery.includes('매출') || lowerQuery.includes('수익') || lowerQuery.includes('실적') || lowerQuery.includes('영업이익');
   const isDivisionQuery = lowerQuery.includes('사업부') || lowerQuery.includes('부문') || lowerQuery.includes('세그먼트') || lowerQuery.includes('건자재') || lowerQuery.includes('건재') || lowerQuery.includes('도료') || lowerQuery.includes('실리콘') || lowerQuery.includes('소재') || lowerQuery.includes('유리');
   const isEbitdaQuery = lowerQuery.includes('ebitda') || lowerQuery.includes('ebidta') || lowerQuery.includes('에비타') || lowerQuery.includes('상각전영업이익') || lowerQuery.includes('상각전');
+  const isRoeQuery = lowerQuery.includes('roe') || lowerQuery.includes('자기자본이익률');
   
   let targetKeywords = [...keywords];
   if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용', 'interest');
@@ -151,6 +152,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   if (isSalesQuery) targetKeywords.push('매출', '매출액', '수익', '영업수익', '실적', '영업이익');
   if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment', '건자재', '건축자재', '건재', '도료', '실리콘', '소재', '유리');
   if (isEbitdaQuery) targetKeywords.push('ebitda', 'ebidta', '에비타', '상각전영업이익', '상각전', '영업이익');
+  if (isRoeQuery) targetKeywords.push('roe', '자기자본이익률', '수익성', '이익률');
 
   const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
   const hasYearInQuery = yearKeywords.length > 0;
@@ -198,6 +200,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       if (isDebtRatioQuery && (rowStr.includes('부채비율') || cleanRowStr.includes('부채비율'))) score += 1000;
       if (isInterestExpenseQuery && (rowStr.includes('이자비용') || cleanRowStr.includes('이자비용'))) score += 1000;
       if (isEbitdaQuery && (rowStr.includes('ebitda') || rowStr.includes('ebidta') || rowStr.includes('상각전') || cleanRowStr.includes('ebitda') || cleanRowStr.includes('ebidta') || cleanRowStr.includes('상각전'))) score += 1000;
+      if (isRoeQuery && (rowStr.includes('roe') || cleanRowStr.includes('roe') || rowStr.includes('자기자본이익률'))) score += 1000;
       if (isSalesQuery && (rowStr.includes('매출') || cleanRowStr.includes('매출액') || rowStr.includes('영업이익') || cleanRowStr.includes('영업이익'))) score += 500;
       if (isDivisionQuery && (rowStr.includes('사업부') || rowStr.includes('부문') || rowStr.includes('건자재') || rowStr.includes('도료') || rowStr.includes('실리콘'))) score += 500;
       
