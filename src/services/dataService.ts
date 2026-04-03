@@ -11,15 +11,15 @@ export interface IRData {
 
 export const fetchCSVData = async (url: string): Promise<any[]> => {
   try {
-    // 개별 파일 내용도 캐시 방지
-    const cacheBustedUrl = url.includes('?') ? `${url}&t=${Date.now()}` : `${url}?t=${Date.now()}`;
-    const response = await fetch(cacheBustedUrl);
-    if (!response.ok) throw new Error('Failed to fetch CSV');
+    // Use server-side proxy
+    const proxyUrl = `/api/proxy-csv?url=${encodeURIComponent(url)}&t=${Date.now()}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error('Failed to fetch CSV via proxy');
     const csvText = await response.text();
     
     return new Promise((resolve, reject) => {
       Papa.parse(csvText, {
-        header: false, // 헤더 없이 원본 행 그대로 가져옴 (복잡한 엑셀 구조 대응)
+        header: false,
         skipEmptyLines: true,
         complete: (results) => {
           resolve(results.data);
@@ -38,21 +38,14 @@ export const fetchCSVData = async (url: string): Promise<any[]> => {
 // 깃허브 저장소 내의 모든 CSV 파일 목록을 가져오는 함수
 export const fetchAllCSVFromRepo = async (repoPath: string): Promise<{name: string, data: any[]}[]> => {
   try {
-    const cleanPath = repoPath.trim().replace(/\/$/, '').replace(/\.git$/, '');
-    // 캐시 방지를 위해 타임스탬프와 랜덤 문자열 추가
-    const apiUrl = `https://api.github.com/repos/${cleanPath}/contents?t=${Date.now()}&r=${Math.random().toString(36).substring(7)}`;
-    console.log('Fetching from GitHub API (Force Refresh):', apiUrl);
+    // Use server-side proxy
+    const apiUrl = `/api/repo-contents?repoPath=${encodeURIComponent(repoPath)}&t=${Date.now()}`;
+    console.log('Fetching from Proxy API:', apiUrl);
     
     const response = await fetch(apiUrl);
     if (!response.ok) {
-      if (response.status === 403) {
-        throw new Error('깃허브 API 호출 한도 초과입니다. 잠시 후(약 10~30분) 다시 시도해 주세요.');
-      }
-      if (response.status === 404) {
-        throw new Error('저장소를 찾을 수 없습니다. 경로(Owner/Repo)가 정확한지 확인해 주세요.');
-      }
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`GitHub API 오류: ${response.status} ${errorData.message || response.statusText}`);
+      throw new Error(errorData.error || `Proxy API 오류: ${response.status}`);
     }
     
     const files = await response.json();

@@ -1,12 +1,16 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import "dotenv/config";
+import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const FAQ_FILE_PATH = path.join(__dirname, "src", "data", "faq.json");
 
 async function startServer() {
   const app = express();
@@ -15,6 +19,82 @@ async function startServer() {
   console.log(`[Server] NODE_ENV is: ${process.env.NODE_ENV}`);
 
   app.use(express.json({ limit: '10mb' }));
+
+  // GitHub API Proxy
+  app.get("/api/repo-contents", async (req, res) => {
+    const { repoPath } = req.query;
+    if (!repoPath) return res.status(400).json({ error: "repoPath is required" });
+
+    try {
+      const cleanPath = String(repoPath).trim().replace(/\/$/, '').replace(/\.git$/, '');
+      const apiUrl = `https://api.github.com/repos/${cleanPath}/contents`;
+      
+      console.log(`[Proxy] Fetching GitHub contents for: ${cleanPath}`);
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'KCC-IR-Assistant'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return res.status(response.status).json({ 
+          error: `GitHub API Error: ${response.status} ${errorData.message || response.statusText}` 
+        });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("[Proxy Error] GitHub API:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch repository contents" });
+    }
+  });
+
+  // CSV Proxy
+  app.get("/api/proxy-csv", async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: "url is required" });
+
+    try {
+      console.log(`[Proxy] Fetching CSV from: ${url}`);
+      const response = await fetch(String(url));
+      
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Failed to fetch CSV: ${response.statusText}` });
+      }
+
+      const text = await response.text();
+      res.send(text);
+    } catch (error: any) {
+      console.error("[Proxy Error] CSV Fetch:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch CSV content" });
+    }
+  });
+
+  // FAQ API Routes
+  app.get("/api/faq", async (req, res) => {
+    try {
+      const data = await fs.readFile(FAQ_FILE_PATH, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (error) {
+      res.status(404).json({ error: "FAQ not found" });
+    }
+  });
+
+  app.post("/api/faq", async (req, res) => {
+    try {
+      const newFaq = req.body;
+      await fs.mkdir(path.dirname(FAQ_FILE_PATH), { recursive: true });
+      await fs.writeFile(FAQ_FILE_PATH, JSON.stringify(newFaq, null, 2), "utf-8");
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[FAQ Save Error]:", error);
+      res.status(500).json({ error: "Failed to save FAQ" });
+    }
+  });
 
   // API routes
   app.post("/api/chat", async (req, res) => {
@@ -62,7 +142,8 @@ async function startServer() {
         2. 답변 마지막에 [출처: 파일명 또는 검색 결과]을 명시하세요.
         3. 데이터가 전혀 없으면 "해당 데이터가 분석 대상 파일에 존재하지 않으며, 외부 검색으로도 확인이 어렵습니다."라고 답하세요.
         4. 전문적인 비즈니스 어조를 사용하고, 수치 뒤에 적절한 단위(원, 천원 등)를 붙이세요.
-        5. 복잡한 비교는 Markdown 표(Table)를 활용하여 가독성을 높이세요.
+        5. **매출액 추이, 부문별 실적 비교 등 숫자가 나열되는 데이터는 반드시 Markdown 표(Table) 형식을 사용하여 깔끔하게 정리하세요.** 텍스트로만 나열하는 것은 금지됩니다.
+        6. 표 하단에는 해당 수치에 대한 핵심 요약이나 분석을 1~2문장으로 덧붙이세요.
 
         [데이터 컨텍스트]
         ${context}

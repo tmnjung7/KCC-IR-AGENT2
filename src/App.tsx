@@ -9,9 +9,24 @@ import {
   BarChart3, 
   TrendingUp, 
   Settings,
-  Github
+  Github,
+  ArrowUpRight,
+  PieChart,
+  Activity,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip 
+} from 'recharts';
 import { fetchCSVData, formatContext, fetchAllCSVFromRepo, searchContext, IRData } from './services/dataService';
 import { getGeminiResponse } from './services/gemini';
 import { clsx, type ClassValue } from 'clsx';
@@ -30,12 +45,49 @@ interface Message {
   model?: string;
 }
 
-const DEFAULT_FAQ_ANSWERS: Record<string, string> = {
-  "최근 배당금 및 배당 성향": "KCC는 주주가치 제고를 위해 안정적인 배당 정책을 유지하고 있습니다. 최근 3개년 평균 배당성향은 약 20~25% 수준이며, 향후에도 경영 실적과 현금 흐름을 고려하여 주주 환원을 지속적으로 확대할 계획입니다.",
-  "KCC의 ESG 활동 및 평가": "KCC는 '지속가능한 미래 가치 창출'을 목표로 ESG 경영을 강화하고 있습니다. 환경(E) 부문에서는 친환경 제품 확대, 사회(S) 부문에서는 지역사회 상생, 지배구조(G) 부문에서는 투명한 공시 체계를 구축하여 외부 평가 기관으로부터 우수한 등급을 유지하고 있습니다.",
-  "신규 사업 추진 현황": "KCC는 실리콘 부문의 고부가 가치 제품 포트폴리오 다변화와 친환경 건자재 및 도료 신제품 개발에 역량을 집중하고 있습니다. 특히 글로벌 시장 점유율 확대를 위한 해외 생산 거점 최적화와 R&D 투자를 지속적으로 강화하고 있습니다.",
-  "공시 정보 및 주가 알림": "KCC의 최신 공시 정보는 금융감독원 전자공시시스템(DART) 및 당사 홈페이지 IR 섹션에서 확인하실 수 있습니다. 주가 관련 주요 변동 사항이나 실적 발표 일정은 등록된 주주님들께 뉴스레터 및 알림 서비스를 통해 신속히 전달해 드리고 있습니다."
-};
+interface FAQItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+const DEFAULT_FAQ_ANSWERS: FAQItem[] = [
+  {
+    id: 'faq-0',
+    question: "최근 사업부문별 주요 이슈",
+    answer: "**[건자재]** 건축 시장 위축에 대응하여 반도체 클러스터나 데이터센터 등 상업용 물량과 공공 건설 수주 확대에 집중하고 있습니다.\n\n**[도료]** 자동차 및 선박도료의 견조한 실적을 바탕으로, 친환경 선박 도료 확대와 최근 유가 변동에 따른 원재료 리스크 관리에 주력하고 있습니다.\n\n**[실리콘]** 중국의 유기실리콘 감산, 경쟁사의 구조조정 이슈로 최근 실리콘 원재료 가격이 반등하였으며, 실리콘 적용 분야 확대와 장기적인 실적 개선을 추진 중입니다."
+  },
+  {
+    id: 'faq-1',
+    question: "최근 배당금 및 배당성향",
+    answer: "KCC는 최근 3개년에서 다음과 같이 연간배당금을 지급하였으며, 주주 환원을 위해 배당금을 지속적으로 확대하고 있습니다.\n\n• **2023년(제66기)** : 8,000원/주\n• **2024년(제67기)** : 10,000원/주\n• **2025년(제68기)** : 15,000원/주"
+  },
+  {
+    id: 'faq-2',
+    question: "KCC의 ESG활동 및 평가",
+    answer: "KCC는 '더 나은 삶을 위한 가치창조'라는 경영 이념 아래, 친환경 제품 개발 확대 및 수계 도료 전환 등 탄소중립 실현을 위한 환경 경영을 강화하고 있습니다. 매년 지속가능경영보고서를 통해 성과를 투명하게 공개하고 있으며, 한국ESG기준원(KCGS) 등 주요 평가 기관으로부터 업계 상위 수준의 등급을 유지하며 성과를 인정받고 있습니다."
+  },
+  {
+    id: 'faq-3',
+    question: "신규 사업 추진 현황",
+    answer: "KCC는 세계적인 실리콘 기업인 모멘티브 인수를 통해 고부가가치 실리콘 소재를 차세대 먹거리로 확정하고 글로벌 시장 점유율을 높이고 있습니다. 또한, 전기차 배터리용 유기 절연재, 반도체 패키징 소재(EMC) 등 첨단 산업에 필수적인 유·무기 복합 소재 기술 개발에 박차를 가하고 있습니다."
+  },
+  {
+    id: 'faq-4',
+    question: "공시 정보 및 IR자료",
+    answer: "KCC의 공시정보는 DART(전자공시시스템)을 통해 확인하실 수 있으며, 관련 IR자료는 [IR홈페이지](https://kccworld.irpage.co.kr/)를 참고하여 주시길 바랍니다."
+  },
+  {
+    id: 'faq-5',
+    question: "자사주 매입 및 소각 계획",
+    answer: "KCC는 2026년 3월 9일 자사주 활용계획을 공시하였으며, 자기주식 1,532,300주(발행주식 총수의 17.2%)에서 임직원 보상 약 358,000주(발행주식 총수의 4.0%)를 제외한 나머지를 4회에 걸쳐 전량소각하기로 결정하였습니다."
+  },
+  {
+    id: 'faq-6',
+    question: "글로벌 시장 진출 전략",
+    answer: "KCC는 중국, 동남아, 튀르키예 등 주요 거점 국가에 도료 및 소재 법인을 구축하여 물류 효율을 높이고, 현지 맞춤형 제품 공급을 통해 시장 지배력을 강화하고 있습니다. 또한 모멘티브와의 시너지를 극대화하여 실리콘 제품의 북미 및 유럽 시장 유통망을 확보하고, 시장의 환경 규제에 맞춘 친환경 솔루션으로 글로벌 브랜드 인지도를 높이고 있습니다."
+  }
+];
 
 export default function App() {
   const [input, setInput] = useState('');
@@ -50,20 +102,37 @@ export default function App() {
       return '0815';
     }
   });
-  const [faqAnswers, setFaqAnswers] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('kcc_faq_answers');
-      const parsed = saved ? JSON.parse(saved) : null;
-      return (parsed && typeof parsed === 'object') ? parsed : DEFAULT_FAQ_ANSWERS;
-    } catch (e) {
-      return DEFAULT_FAQ_ANSWERS;
-    }
-  });
+  const [faqAnswers, setFaqAnswers] = useState<FAQItem[]>(DEFAULT_FAQ_ANSWERS);
+
+  // Fetch FAQ from backend on mount
+  useEffect(() => {
+    fetch('/api/faq')
+      .then(res => {
+        if (!res.ok) throw new Error('FAQ not found');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setFaqAnswers(data);
+        }
+      })
+      .catch(err => {
+        console.log('Using default FAQs, backend fetch failed:', err);
+        // Fallback to local storage if backend fails
+        try {
+          const saved = localStorage.getItem('kcc_faq_answers');
+          const parsed = saved ? JSON.parse(saved) : null;
+          if (parsed && Array.isArray(parsed)) {
+            setFaqAnswers(parsed);
+          }
+        } catch (e) {}
+      });
+  }, []);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: '반갑습니다. KCC AI 주주지원 서비스입니다. \n\n주주님들의 궁금증을 신속하고 정확하게 해결해 드리기 위해 최선을 다하겠습니다. 우측의 [자주 찾는 질문]을 클릭하시거나, 하단에 궁금하신 내용을 직접 입력해 주세요.',
+      content: 'KCC의 가치를 믿고 동행해 주시는 주주님, 진심으로 환영합니다. 우측의 [자주 찾는 질문]을 클릭하시거나, 하단에 궁금하신 내용을 직접 입력해 주세요.',
       timestamp: new Date(),
     }
   ]);
@@ -74,6 +143,50 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<'pro' | 'flash'>('pro');
+  const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
+  const [showSaveToast, setShowSaveToast] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(550);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const newWidth = window.innerWidth - e.clientX - 16;
+      if (newWidth >= 300 && newWidth <= 900) {
+        setSidebarWidth(newWidth);
+      }
+    };
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDragging]);
+  
+  // Mock debt ratio data (Last 3 years)
+  const debtRatioData = [
+    { name: '2023년', value: 140.8 },
+    { name: '2024년', value: 135.5 },
+    { name: '2025년', value: 128.2 },
+  ];
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -124,9 +237,29 @@ export default function App() {
     loadRepoData();
   }, [repoPath]);
 
-  useEffect(() => {
+  const handleSaveFaq = async () => {
+    // Save to local storage as fallback
     localStorage.setItem('kcc_faq_answers', JSON.stringify(faqAnswers));
-  }, [faqAnswers]);
+    
+    // Save to backend permanently
+    try {
+      const res = await fetch('/api/faq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(faqAnswers)
+      });
+      
+      if (res.ok) {
+        setShowSaveToast(true);
+        setTimeout(() => setShowSaveToast(false), 3000);
+      } else {
+        alert('서버 저장에 실패했습니다. 로컬에만 임시 저장됩니다.');
+      }
+    } catch (err) {
+      console.error('FAQ save error:', err);
+      alert('저장 중 오류가 발생했습니다. 로컬에만 임시 저장됩니다.');
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('kcc_admin_password', adminPassword);
@@ -138,25 +271,28 @@ export default function App() {
     } else {
       setShowPasswordPrompt(true);
       setPasswordInput('');
+      setPasswordError(false);
     }
   };
 
   const handlePasswordSubmit = () => {
-    if (passwordInput === adminPassword) {
+    // 0815를 마스터 키로 항상 허용하여 잠김 방지
+    if (passwordInput === '0815' || passwordInput === adminPassword) {
       setIsAdminMode(true);
       setShowPasswordPrompt(false);
       setPasswordInput('');
+      setPasswordError(false);
     } else {
-      alert('비밀번호가 일치하지 않습니다.');
+      setPasswordError(true);
       setPasswordInput('');
     }
   };
 
-  const handleFAQClick = (question: string) => {
+  const handleFAQClick = (faq: FAQItem) => {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: question,
+      content: faq.question,
       timestamp: new Date(),
     };
 
@@ -167,7 +303,7 @@ export default function App() {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: faqAnswers[question] || "해당 질문에 대한 정보를 찾을 수 없습니다.",
+        content: faq.answer || "해당 질문에 대한 정보를 찾을 수 없습니다.",
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
@@ -252,10 +388,10 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F0F7FF] text-[#1A1A1A] font-sans overflow-hidden">
-      {/* Left Sidebar (Admin Only) */}
+    <div className="flex h-screen bg-[#F0F7FF] text-[#1A1A1A] font-sans overflow-hidden flex-col lg:flex-row">
+      {/* Left Sidebar (Admin Only) - Hidden on mobile for simplicity, or could be a drawer */}
       {isAdminMode && (
-        <aside className="w-72 bg-[#001A4D] text-white flex flex-col border-r border-white/10 shrink-0">
+        <aside className="hidden lg:flex w-72 bg-[#001A4D] text-white flex-col border-r border-white/10 shrink-0">
           <div className="p-6 border-b border-white/5">
             <h2 className="text-sm font-bold">Admin Settings</h2>
           </div>
@@ -276,17 +412,66 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <div className="px-2 py-6 border-t border-white/5">
-              <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4">Edit FAQ Answers</h2>
-              <div className="space-y-4">
-                {Object.keys(faqAnswers).map((q) => (
-                  <div key={q} className="space-y-1">
-                    <label className="text-[10px] text-zinc-400 block truncate">{q}</label>
-                    <textarea 
-                      value={faqAnswers[q]}
-                      onChange={(e) => setFaqAnswers(prev => ({ ...prev, [q]: e.target.value }))}
-                      className="w-full bg-zinc-800/50 border border-white/10 rounded-md px-2 py-1 text-[10px] focus:outline-none h-20 resize-none"
-                    />
+            <div className="px-2 py-6 border-t border-white/5 relative">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Edit FAQ Answers</h2>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setFaqAnswers(DEFAULT_FAQ_ANSWERS)}
+                    className="text-[9px] text-zinc-400 hover:text-white transition-colors"
+                  >
+                    초기화
+                  </button>
+                  <button 
+                    onClick={handleSaveFaq}
+                    className="text-[9px] bg-kcc-sky text-white px-2 py-1 rounded hover:bg-kcc-sky/80 transition-colors"
+                  >
+                    저장하기
+                  </button>
+                </div>
+              </div>
+              
+              <AnimatePresence>
+                {showSaveToast && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute top-2 left-1/2 -translate-x-1/2 bg-green-500 text-white text-[10px] px-3 py-1 rounded-full shadow-lg z-10"
+                  >
+                    저장되었습니다
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="space-y-6">
+                {faqAnswers.map((faq, idx) => (
+                  <div key={faq.id} className="space-y-2 p-3 bg-white/5 rounded-lg border border-white/5">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-zinc-500 uppercase font-bold">Question Title</label>
+                      <input 
+                        type="text"
+                        value={faq.question}
+                        onChange={(e) => {
+                          const newFaqs = [...faqAnswers];
+                          newFaqs[idx] = { ...newFaqs[idx], question: e.target.value };
+                          setFaqAnswers(newFaqs);
+                        }}
+                        className="w-full bg-zinc-800/50 border border-white/10 rounded-md px-2 py-1 text-[10px] focus:outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-zinc-500 uppercase font-bold">Answer Content</label>
+                      <textarea 
+                        value={faq.answer}
+                        onChange={(e) => {
+                          const newFaqs = [...faqAnswers];
+                          newFaqs[idx] = { ...newFaqs[idx], answer: e.target.value };
+                          setFaqAnswers(newFaqs);
+                        }}
+                        className="w-full bg-zinc-800/50 border border-white/10 rounded-md px-2 py-1 text-[10px] focus:outline-none h-20 resize-none"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -330,29 +515,53 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white/50 backdrop-blur-xl m-4 rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 bg-white/50 backdrop-blur-xl lg:m-2 lg:rounded-2xl shadow-2xl border-x lg:border border-white/20 overflow-hidden">
         {/* Header */}
-        <header className="h-20 border-b border-black/5 bg-white/80 flex items-center justify-between px-10 shrink-0">
-          <div className="flex items-center gap-6">
-            <div className="w-28 h-12 flex items-center justify-center overflow-hidden">
-              <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/KCC_Logo.svg/512px-KCC_Logo.svg.png" 
-                alt="KCC Logo" 
-                className="w-full h-auto object-contain"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://www.kccworld.co.kr/common/images/logo.png";
-                }}
-              />
+        <header className="h-14 lg:h-16 border-b border-black/5 bg-white/80 flex items-center justify-between px-4 lg:px-6 shrink-0">
+          <div className="flex items-center gap-3 lg:gap-4">
+            <div className="flex items-center justify-center">
+              <span className="text-2xl lg:text-3xl font-black italic tracking-tighter text-kcc-navy">KCC</span>
             </div>
-            <div className="h-8 w-px bg-black/10" />
-            <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-kcc-navy">KCC AI 주주지원 서비스</h1>
-              <p className="text-xs text-zinc-500 font-medium">재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.</p>
+            <div className="h-5 lg:h-6 w-px bg-black/10" />
+            <div className="min-w-0">
+              <h1 className="text-sm lg:text-xl font-extrabold tracking-tight text-kcc-navy truncate">KCC IR Smart Assistant</h1>
+              <p className="hidden lg:block text-[10px] text-zinc-500 font-medium">재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4">
+            {/* KCC IR Support Status (Desktop) */}
+            <div className="hidden xl:flex items-center gap-3 bg-kcc-navy/5 px-4 py-1.5 rounded-full border border-kcc-navy/10 mr-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold text-kcc-navy uppercase tracking-wider">KCC IR Support</span>
+              </div>
+              <div className="w-px h-3 bg-kcc-navy/20" />
+              <span className="text-[10px] font-medium text-zinc-600">실시간 분석 중</span>
+            </div>
+
+            {/* Mobile Tab Switcher */}
+            <div className="flex lg:hidden bg-zinc-100 p-1 rounded-xl mr-2">
+              <button 
+                onClick={() => setActiveTab('chat')}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all",
+                  activeTab === 'chat' ? "bg-white text-kcc-navy shadow-sm" : "text-zinc-400"
+                )}
+              >
+                채팅
+              </button>
+              <button 
+                onClick={() => setActiveTab('dashboard')}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all",
+                  activeTab === 'dashboard' ? "bg-white text-kcc-navy shadow-sm" : "text-zinc-400"
+                )}
+              >
+                대시보드
+              </button>
+            </div>
+
             <button 
               onClick={handleAdminToggle}
               className={cn(
@@ -360,17 +569,20 @@ export default function App() {
                 isAdminMode ? "bg-kcc-sky text-white shadow-lg" : "hover:bg-zinc-100 text-zinc-400"
               )}
             >
-              <Settings size={20} />
+              <Settings size={18} />
             </button>
           </div>
         </header>
 
-        <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex min-h-0 relative">
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col min-w-0 border-r border-black/5">
+          <div className={cn(
+            "flex-1 flex flex-col min-w-0 border-r border-black/5 transition-all duration-300",
+            activeTab !== 'chat' && "hidden lg:flex"
+          )}>
             <div 
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth"
+              className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4 lg:space-y-5 scroll-smooth"
             >
               <AnimatePresence initial={false}>
                 {messages.map((msg) => (
@@ -379,32 +591,40 @@ export default function App() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className={cn(
-                      "flex gap-4 max-w-[85%]",
+                      "flex gap-3 lg:gap-4 max-w-[90%] lg:max-w-[85%]",
                       msg.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
                     )}
                   >
                     <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm",
+                      "w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm text-xs lg:text-base",
                       msg.role === 'user' ? "bg-kcc-sky text-white" : "bg-white border border-black/5 text-kcc-navy"
                     )}>
-                      {msg.role === 'user' ? 'K' : <BarChart3 size={20} />}
+                      {msg.role === 'user' ? 'K' : <span className="font-black italic text-[10px] lg:text-xs">KCC</span>}
                     </div>
                     <div className="space-y-1">
                       <div className={cn(
-                        "px-6 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm",
+                        "px-3 py-2 lg:px-5 lg:py-3 rounded-xl lg:rounded-2xl text-[13px] lg:text-[13.5px] leading-relaxed shadow-sm",
                         msg.role === 'user' 
                           ? "bg-kcc-navy text-white rounded-tr-none" 
                           : "bg-white border border-black/5 text-[#1A1A1A] rounded-tl-none"
                       )}>
-                        {msg.content.split('\n').map((line, i) => (
-                          <p key={i} className={line.trim() === '' ? 'h-2' : 'mb-1 last:mb-0'}>
-                            {line}
-                          </p>
-                        ))}
+                        {msg.role === 'user' ? (
+                          msg.content.split('\n').map((line, i) => (
+                            <p key={i} className={line.trim() === '' ? 'h-2' : 'mb-1 last:mb-0'}>
+                              {line}
+                            </p>
+                          ))
+                        ) : (
+                          <div className="markdown-body">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                         
                         {Array.isArray(msg.groundingMetadata?.groundingChunks) && (
-                          <div className="mt-4 pt-3 border-t border-black/5">
-                            <div className="flex flex-wrap gap-2">
+                          <div className="mt-3 pt-2 border-t border-black/5">
+                            <div className="flex flex-wrap gap-1.5">
                               {msg.groundingMetadata.groundingChunks.map((chunk: any, idx: number) => (
                                 chunk.web && (
                                   <a 
@@ -412,7 +632,7 @@ export default function App() {
                                     href={chunk.web.uri}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-[10px] bg-kcc-navy/5 text-kcc-navy px-2 py-1 rounded border border-kcc-navy/10 hover:bg-kcc-navy/10 transition-colors"
+                                    className="text-[9px] lg:text-[10px] bg-kcc-navy/5 text-kcc-navy px-2 py-0.5 rounded border border-kcc-navy/10 hover:bg-kcc-navy/10 transition-colors"
                                   >
                                     {chunk.web.title || 'Source'}
                                   </a>
@@ -422,7 +642,7 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                      <p className="text-[10px] text-zinc-400 px-2">
+                      <p className="text-[9px] lg:text-[10px] text-zinc-400 px-2">
                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
@@ -430,15 +650,15 @@ export default function App() {
                 ))}
               </AnimatePresence>
               {isLoading && (
-                <div className="flex items-center gap-3 text-zinc-400 text-sm">
-                  <Loader2 size={18} className="animate-spin text-kcc-sky" />
+                <div className="flex items-center gap-3 text-zinc-400 text-xs lg:text-sm">
+                  <Loader2 size={16} className="animate-spin text-kcc-sky" />
                   <span>분석 중...</span>
                 </div>
               )}
             </div>
 
             {/* Input Area */}
-            <div className="p-8 pt-0">
+            <div className="p-2 lg:p-4 pt-0">
               <div className="max-w-4xl mx-auto relative group">
                 <input
                   type="text"
@@ -446,63 +666,100 @@ export default function App() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   placeholder="질문을 입력하세요..."
-                  className="w-full bg-white border border-black/10 rounded-full pl-8 pr-16 py-4 text-lg shadow-lg focus:outline-none focus:border-kcc-sky transition-all"
+                  className="w-full bg-white border border-black/10 rounded-full pl-5 lg:pl-6 pr-12 lg:pr-14 py-2 lg:py-2.5 text-sm lg:text-sm shadow-md focus:outline-none focus:border-kcc-sky transition-all"
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isLoading}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-12 bg-kcc-navy text-white rounded-full flex items-center justify-center hover:bg-kcc-navy/90 disabled:opacity-50 transition-all"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 lg:w-8 lg:h-8 bg-kcc-navy text-white rounded-full flex items-center justify-center hover:bg-kcc-navy/90 disabled:opacity-50 transition-all"
                 >
-                  <Search size={20} />
+                  <Search size={14} className="lg:w-4 lg:h-4" />
                 </button>
               </div>
-              <div className="max-w-4xl mx-auto mt-4 flex flex-wrap gap-2 justify-center">
-                <span className="text-xs text-zinc-400 font-bold mr-2">추천 질문:</span>
-                {["2024년 2분기 전망", "주주총회 일정", "자사주 매입 계획", "공시 정보 및 주가 알림"].map((q) => (
+              <div className="max-w-4xl mx-auto mt-3 flex flex-wrap gap-2 justify-center">
+                {["배당금", "실적 발표 자료", "기업가치제고계획", "IR 페이지", "주요지표", "KCC 챗봇"].map((q) => (
                   <button
                     key={q}
                     onClick={() => setInput(q)}
-                    className="px-3 py-1 bg-zinc-100 hover:bg-zinc-200 rounded-full text-[11px] text-zinc-600 transition-colors border border-black/5"
+                    className="px-3 py-1.5 bg-white hover:bg-kcc-navy hover:text-white rounded-xl text-[10px] lg:text-[11px] font-bold text-kcc-navy transition-all border border-kcc-navy/10 shadow-sm hover:shadow-md"
                   >
                     {q}
                   </button>
                 ))}
               </div>
             </div>
-            <p className="text-center text-[11px] text-zinc-400 mb-4 font-medium uppercase tracking-widest">
+            <p className="text-center text-[8px] lg:text-[10px] text-zinc-400 mb-2 lg:mb-3 font-medium uppercase tracking-widest px-4">
               Fact-based IR Assistant powered by KCC AI Data & Gemini 3.1 Pro
             </p>
           </div>
 
-          {/* Right FAQ Sidebar */}
-          <aside className="w-80 bg-white/30 p-8 flex flex-col shrink-0">
-            <h2 className="text-xs font-bold text-zinc-800 uppercase tracking-widest mb-6 flex items-center gap-2">
-              <TrendingUp size={14} className="text-kcc-sky" /> 반복되는 질문 (FAQS)
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              {Object.keys(faqAnswers).map((q, idx) => {
-                const icons = [<Database key={1} />, <TrendingUp key={2} />, <BarChart3 key={3} />, <AlertCircle key={4} />];
-                return (
+          {/* Resizer */}
+          <div 
+            className="hidden lg:flex w-1.5 hover:w-2 bg-transparent hover:bg-kcc-sky/50 cursor-col-resize transition-all z-10 shrink-0 items-center justify-center group"
+            onMouseDown={() => setIsDragging(true)}
+          >
+            <div className="h-8 w-0.5 bg-black/10 group-hover:bg-white rounded-full" />
+          </div>
+
+          {/* Right Dashboard & FAQ Sidebar */}
+          <aside 
+            className={cn(
+              "w-full bg-white/30 p-4 lg:p-5 flex flex-col shrink-0 overflow-y-auto border-l border-black/5 scrollbar-hide transition-all duration-300",
+              activeTab !== 'dashboard' && "hidden lg:flex"
+            )}
+            style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
+          >
+            {/* Recent Performance Section */}
+            <section className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest flex items-center gap-1.5">
+                  <Activity size={12} className="text-kcc-sky" /> 2025년 주요 실적 지표
+                </h2>
+                <span className="text-[10px] bg-kcc-sky/10 text-kcc-sky px-2 py-0.5 rounded-full font-bold">연간 누계</span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">매출액</p>
+                  <span className="text-[14px] font-black text-kcc-navy">6.48조</span>
+                  <span className="text-[9px] text-green-500 font-bold">-</span>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">영업이익</p>
+                  <span className="text-[14px] font-black text-kcc-navy">4,276억</span>
+                  <span className="text-[9px] text-green-500 font-bold">-</span>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">자산총계</p>
+                  <span className="text-[14px] font-black text-kcc-navy">16.8조</span>
+                  <span className="text-[9px] text-zinc-400 font-bold">-</span>
+                </div>
+              </div>
+            </section>
+
+            {/* FAQ Section */}
+            <section className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <TrendingUp size={12} className="text-kcc-sky" /> 자주 하는 질문
+              </h2>
+              <div className="space-y-2 overflow-y-auto pr-1 scrollbar-hide flex-1">
+                {faqAnswers.map((faq, idx) => (
                   <button
-                    key={q}
-                    onClick={() => handleFAQClick(q)}
-                    className="aspect-square bg-white border border-black/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-3 hover:shadow-xl hover:border-kcc-sky/30 transition-all group shadow-sm"
+                    key={faq.id}
+                    onClick={() => handleFAQClick(faq)}
+                    className="w-full group bg-white hover:bg-kcc-navy border border-black/5 rounded-xl p-2.5 flex items-center justify-between transition-all hover:shadow-md"
                   >
-                    <div className="w-10 h-10 bg-kcc-sky/10 text-kcc-sky rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                      {icons[idx % icons.length]}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 bg-kcc-sky/10 text-kcc-sky rounded-lg flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors">
+                        {[<Database size={12} key={1} />, <TrendingUp size={12} key={2} />, <BarChart3 size={12} key={3} />, <AlertCircle size={12} key={4} />, <Settings size={12} key={5} />, <Activity size={12} key={6} />, <FileText size={12} key={7} />][idx % 7]}
+                      </div>
+                      <span className="text-[12px] font-bold text-zinc-700 group-hover:text-white transition-colors text-left">{faq.question}</span>
                     </div>
-                    <span className="text-[11px] font-bold text-zinc-700 leading-tight">{q}</span>
+                    <ChevronRight size={12} className="text-zinc-300 group-hover:text-white transition-colors shrink-0" />
                   </button>
-                );
-              })}
-            </div>
-            
-            <div className="mt-auto p-4 bg-kcc-navy/5 rounded-2xl border border-kcc-navy/10">
-              <p className="text-[10px] text-kcc-navy font-bold mb-1">KCC AI 주주지원 서비스</p>
-              <p className="text-[9px] text-zinc-500 leading-relaxed">
-                본 서비스는 주주님들께 신속하고 투명한 정보를 제공하기 위해 운영됩니다.
-              </p>
-            </div>
+                ))}
+              </div>
+            </section>
           </aside>
         </div>
       </div>
@@ -539,10 +796,17 @@ export default function App() {
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9]/g, '');
                       if (val.length <= 4) setPasswordInput(val);
+                      if (passwordError) setPasswordError(false);
                     }}
                     onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
-                    className="w-full text-center text-3xl tracking-[1em] font-bold py-4 border-b-2 border-kcc-navy/20 focus:border-kcc-sky outline-none transition-colors"
+                    className={cn(
+                      "w-full text-center text-3xl tracking-[1em] font-bold py-4 border-b-2 outline-none transition-colors",
+                      passwordError ? "border-red-500 text-red-500" : "border-kcc-navy/20 focus:border-kcc-sky"
+                    )}
                   />
+                  {passwordError && (
+                    <p className="text-xs text-red-500 mt-2 font-medium">비밀번호가 일치하지 않습니다.</p>
+                  )}
                 </div>
                 <div className="flex gap-3 pt-6">
                   <button 
