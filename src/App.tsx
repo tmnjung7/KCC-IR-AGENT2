@@ -148,6 +148,29 @@ export default function App() {
   const [passwordError, setPasswordError] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(550);
   const [isDragging, setIsDragging] = useState(false);
+  const [loadingTime, setLoadingTime] = useState(0);
+
+  // Loading Timer Effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isLoading) {
+      setLoadingTime(0);
+      interval = setInterval(() => {
+        setLoadingTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setLoadingTime(0);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  // Loading Messages
+  const getLoadingMessage = (time: number) => {
+    if (time < 3) return "내부 IR 데이터를 검색하고 있습니다...";
+    if (time < 6) return "최신 외부 기사와 증권사 리포트를 분석 중입니다...";
+    if (time < 9) return "데이터를 종합하여 답변을 생성하고 있습니다...";
+    return "심층 분석 중입니다. 잠시만 기다려 주세요...";
+  };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -524,7 +547,7 @@ export default function App() {
             </div>
             <div className="h-5 lg:h-6 w-px bg-black/10" />
             <div className="min-w-0">
-              <h1 className="text-sm lg:text-xl font-extrabold tracking-tight text-kcc-navy truncate">KCC IR Smart Assistant</h1>
+              <h1 className="text-sm lg:text-xl font-extrabold tracking-tight text-kcc-navy truncate">KCC IR AI 어시스턴트</h1>
               <p className="hidden lg:block text-[10px] text-zinc-500 font-medium">재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.</p>
             </div>
           </div>
@@ -650,9 +673,16 @@ export default function App() {
                 ))}
               </AnimatePresence>
               {isLoading && (
-                <div className="flex items-center gap-3 text-zinc-400 text-xs lg:text-sm">
-                  <Loader2 size={16} className="animate-spin text-kcc-sky" />
-                  <span>분석 중...</span>
+                <div className="flex flex-col gap-2 bg-white/50 p-3 lg:p-4 rounded-xl border border-black/5 w-fit shadow-sm">
+                  <div className="flex items-center gap-3 text-zinc-600 text-xs lg:text-sm">
+                    <Loader2 size={16} className="animate-spin text-kcc-sky" />
+                    <span className="font-bold">{getLoadingMessage(loadingTime)}</span>
+                    <span className="text-[10px] bg-black/5 px-1.5 py-0.5 rounded text-zinc-500 font-mono">{loadingTime}s</span>
+                  </div>
+                  <div className="text-[10px] lg:text-[11px] text-zinc-500 pl-7 flex items-center gap-1.5">
+                    <span className="inline-block w-1 h-1 bg-kcc-sky rounded-full animate-pulse" />
+                    심층 분석 및 외부 데이터 검색으로 인해 <span className="font-bold text-kcc-navy">약 30초 ~ 1분</span> 정도 소요될 수 있습니다.
+                  </div>
                 </div>
               )}
             </div>
