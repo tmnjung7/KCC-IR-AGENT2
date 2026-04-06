@@ -15,29 +15,38 @@
 
 /* Markdown Table Styles */
 .markdown-body table {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   border-collapse: collapse;
   margin: 1rem 0;
-  font-size: 0.85rem;
+  font-size: 0.825rem;
   background: white;
-  border-radius: 12px;
-  overflow: hidden;
+  border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .markdown-body th {
   background: #003399;
   color: white;
   font-weight: 700;
-  text-align: left;
-  padding: 10px 14px;
+  text-align: center !important;
+  padding: 10px 16px;
   border: 1px solid rgba(255,255,255,0.1);
 }
 
 .markdown-body td {
-  padding: 8px 14px;
+  padding: 9px 16px;
   border: 1px solid #f0f0f0;
   color: #444;
+  text-align: right !important;
+}
+
+.markdown-body td:first-child {
+  text-align: center !important;
+  font-weight: 500;
 }
 
 .markdown-body tr:nth-child(even) {
