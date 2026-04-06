@@ -13,7 +13,8 @@ import {
   ArrowUpRight,
   PieChart,
   Activity,
-  ChevronRight
+  ChevronRight,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -149,6 +150,7 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useState(550);
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
+  const [isEnglishMode, setIsEnglishMode] = useState(false);
 
   // Loading Timer Effect
   useEffect(() => {
@@ -585,6 +587,18 @@ export default function App() {
               </button>
             </div>
 
+            <button
+              onClick={() => setIsEnglishMode(!isEnglishMode)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300 mr-1",
+                isEnglishMode ? "bg-kcc-sky text-white shadow-md" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+              )}
+              title="Toggle English Mode"
+            >
+              <Globe size={14} />
+              {isEnglishMode ? 'EN' : 'KR'}
+            </button>
+
             <button 
               onClick={handleAdminToggle}
               className={cn(
@@ -695,7 +709,7 @@ export default function App() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="질문을 입력하세요..."
+                  placeholder={isEnglishMode ? "Ask questions about KCC's financials or business..." : "질문을 입력하세요..."}
                   className="w-full bg-white border border-black/10 rounded-full pl-5 lg:pl-6 pr-12 lg:pr-14 py-2 lg:py-2.5 text-sm lg:text-sm shadow-md focus:outline-none focus:border-kcc-sky transition-all"
                 />
                 <button

@@ -1,16 +1,22 @@
-export const getGeminiResponse = async (prompt: string, context: string, model: 'pro' | 'flash' = 'pro') => {
+export const getGeminiResponse = async (prompt: string, context: string, model: 'pro' | 'flash' = 'pro', isEnglishMode: boolean = false) => {
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prompt, context, model }),
+      body: JSON.stringify({ prompt, context, model, isEnglishMode }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "서버 응답 오류가 발생했습니다.");
+      let errorMessage = 'AI 응답 중 오류가 발생했습니다.';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        errorMessage = `서버 오류 (${response.status}): ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

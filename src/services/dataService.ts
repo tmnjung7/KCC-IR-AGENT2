@@ -44,7 +44,12 @@ export const fetchAllCSVFromRepo = async (repoPath: string): Promise<{name: stri
     const response = await fetch(apiUrl);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `GitHub API 오류: ${response.status}`);
+      const errorMsg = errorData.message || `GitHub API 오류: ${response.status}`;
+      console.error('GitHub API Error Details:', errorData);
+      if (response.status === 403 && errorMsg.includes('rate limit')) {
+        throw new Error('GitHub API 호출 한도가 초과되었습니다. 잠시 후 다시 시도해 주세요.');
+      }
+      throw new Error(errorMsg);
     }
     
     const files = await response.json();
