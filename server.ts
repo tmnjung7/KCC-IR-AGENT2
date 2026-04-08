@@ -159,7 +159,7 @@ async function startServer() {
           try {
             const config: any = {
               systemInstruction: finalSystemInstruction,
-              temperature: modelName.includes('pro') ? 0.3 : 0.2,
+              temperature: modelName.includes('pro') ? 0.4 : 0.2,
             };
 
             if (useSearch) {

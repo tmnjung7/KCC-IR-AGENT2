@@ -587,17 +587,31 @@ export default function App() {
               </button>
             </div>
 
-            <button
-              onClick={() => setIsEnglishMode(!isEnglishMode)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300 mr-1",
-                isEnglishMode ? "bg-kcc-sky text-white shadow-md" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-              )}
-              title="Toggle English Mode"
-            >
-              <Globe size={14} />
-              {isEnglishMode ? 'EN' : 'KR'}
-            </button>
+            <div className="flex items-center bg-zinc-100/80 p-1 rounded-full border border-black/5 mr-1 lg:mr-2 shadow-inner">
+              <button
+                onClick={() => setIsEnglishMode(false)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
+                  !isEnglishMode 
+                    ? "bg-white text-kcc-navy shadow-sm" 
+                    : "text-zinc-400 hover:text-zinc-600"
+                )}
+              >
+                KOR
+              </button>
+              <button
+                onClick={() => setIsEnglishMode(true)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
+                  isEnglishMode 
+                    ? "bg-kcc-navy text-white shadow-md" 
+                    : "text-zinc-400 hover:text-zinc-600"
+                )}
+              >
+                <Globe size={12} />
+                ENG
+              </button>
+            </div>
 
             <button 
               onClick={handleAdminToggle}

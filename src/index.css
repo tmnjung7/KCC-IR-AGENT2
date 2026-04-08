@@ -15,13 +15,15 @@
 
 /* Markdown Table Styles */
 .markdown-body table {
-  width: auto;
+  width: max-content;
   max-width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 1rem 0;
   font-size: 0.825rem;
   background: white;
   border-radius: 8px;
+  border: 1px solid #e5e7eb;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   display: block;
   overflow-x: auto;
@@ -34,14 +36,25 @@
   font-weight: 700;
   text-align: center !important;
   padding: 10px 16px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border-right: 1px solid rgba(255,255,255,0.2);
+  border-bottom: 1px solid #003399;
 }
 
 .markdown-body td {
   padding: 9px 16px;
-  border: 1px solid #f0f0f0;
   color: #444;
   text-align: right !important;
+  border-right: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.markdown-body th:last-child,
+.markdown-body td:last-child {
+  border-right: none;
+}
+
+.markdown-body tr:last-child td {
+  border-bottom: none;
 }
 
 .markdown-body td:first-child {
