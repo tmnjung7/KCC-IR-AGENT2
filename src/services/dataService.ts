@@ -222,6 +222,11 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
 
       // 4. 파일 언급 가중치
       if (isFileMentioned) score += 200;
+      
+      // 4-1. 사업부문 관련 질문일 때, 파일명에 '사업부'나 '부문정보'가 들어가면 압도적인 가중치 부여
+      if (isDivisionQuery && (fileNameLower.includes('사업부') || fileNameLower.includes('부문정보'))) {
+        score += 2000;
+      }
 
       // 5. 헤더 행 자체는 점수 부여 (문맥 파악용)
       const isHeader = headerCandidates.some(h => h.index === rowIndex);
