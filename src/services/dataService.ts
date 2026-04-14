@@ -11,8 +11,12 @@ export interface IRData {
 
 export const fetchCSVData = async (url: string): Promise<any[]> => {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     // Fetch directly to avoid server IP rate limits
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) throw new Error('Failed to fetch CSV');
     const csvText = await response.text();
     
@@ -40,8 +44,18 @@ export const fetchAllCSVFromRepo = async (repoPath: string): Promise<{name: stri
     // Fetch directly from GitHub API to avoid server IP rate limits
     const apiUrl = `https://api.github.com/repos/${repoPath}/contents`;
     console.log('Fetching from GitHub API directly:', apiUrl);
-    
-    const response = await fetch(apiUrl);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'KCC-IR-Assistant'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const errorMsg = errorData.message || `GitHub API 오류: ${response.status}`;
