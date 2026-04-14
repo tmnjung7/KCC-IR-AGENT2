@@ -353,7 +353,7 @@ export default function App() {
     try {
       // 질문과 관련된 데이터만 추출하여 컨텍스트 구성 (대용량 데이터 대응)
       const context = searchContext(allFileData, input);
-      const responseData = await getGeminiResponse(input, context, selectedModel);
+      const responseData = await getGeminiResponse(input, context, selectedModel, isEnglishMode);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
