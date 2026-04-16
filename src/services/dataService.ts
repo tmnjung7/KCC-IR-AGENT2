@@ -328,7 +328,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
 
   let context = "### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###\n\n";
   let totalLength = 0;
-  const MAX_CONTEXT_LENGTH = 250000;
+  const MAX_CONTEXT_LENGTH = 100000; // 250,000 → 100,000: 점수 기반 상위 행만 추려내므로 품질 동일, 처리 속도 개선
   const seenRows = new Set<string>();
 
   // 상위 점수 행들부터 컨텍스트에 추가

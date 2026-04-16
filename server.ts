@@ -278,6 +278,31 @@ ${context}
       let response;
       let usedModel = model === 'flash' ? "gemini-3-flash-preview" : "gemini-3.1-pro-preview";
 
+      // Smart Grounding: 질문 유형에 따라 웹 검색 필요 여부 자동 결정
+      // 내부 데이터로 충분한 질문은 Search OFF → 응답 속도 대폭 단축
+      const needsWebSearch = (userPrompt: string): boolean => {
+        const lower = userPrompt.toLowerCase();
+        const searchTriggers = [
+          // 미래/전망 관련
+          '전망', '예상', '예측', '향후', '앞으로', '미래', '가능성', '기대',
+          '2026', '2027', '2028', '2029', '2030',
+          // 시장·주가 데이터 (내부 CSV에 없는 정보)
+          '주가', '시가총액', '주식', '거래량', '상장',
+          // 최신 뉴스·공시
+          '최신', '뉴스', '기사', '언론', '보도', '공시',
+          '최근 발표', '어제', '오늘', '이번 주', '이번 달',
+          // 외부 비교·산업 동향
+          '경쟁사', '동종업계', '업계 평균', '시장 동향', '산업 동향', '글로벌',
+          // 증권사·애널리스트 분석
+          '증권사', '목표주가', '투자의견', '리포트', '애널리스트', '컨센서스',
+        ];
+        const isSearchNeeded = searchTriggers.some(kw => lower.includes(kw));
+        console.log(`[SmartGrounding] useSearch=${isSearchNeeded} | prompt: "${userPrompt.substring(0, 60)}..."`);
+        return isSearchNeeded;
+      };
+
+      const shouldUseSearch = needsWebSearch(prompt);
+
       const generateWithRetry = async (modelName: string, useSearch = true, maxRetries = 2) => {
         for (let i = 0; i <= maxRetries; i++) {
           try {
@@ -322,8 +347,8 @@ ${context}
       };
 
       try {
-        // 1차 시도: 최고 성능 Pro 모델
-        response = await generateWithRetry(usedModel);
+        // 1차 시도: 최고 성능 Pro 모델 (Smart Grounding 적용)
+        response = await generateWithRetry(usedModel, shouldUseSearch);
       } catch (proError: any) {
         // Pro 모델 할당량 초과 시 Flash 모델로 자동 전환 (Fallback)
         const errorMsg = proError.message || "";
