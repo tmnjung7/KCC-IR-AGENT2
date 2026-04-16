@@ -326,6 +326,8 @@ ${context}
 
       const sendEvent = (data: object) => {
         res.write(`data: ${JSON.stringify(data)}\n\n`);
+        // flush()로 청크를 즉시 클라이언트에 전송 (버퍼링 방지)
+        if (typeof (res as any).flush === 'function') (res as any).flush();
       };
 
       // 스트림 시작 (fallback 포함)
