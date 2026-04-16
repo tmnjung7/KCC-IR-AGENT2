@@ -156,6 +156,25 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   
   console.log('Extracted keywords for search:', keywords);
 
+  // ── 기타포괄손익 관련 청크 비우선 처리를 위한 상수 ──────────────────────
+  const DEPRIORITIZE_KEYWORDS = [
+    '후속기간에 당기손익으로 재분류되지 않는 항목',
+    '기타포괄손익',
+    '자산재평가이익',
+    '재평가잉여금',
+  ];
+
+  // ── 재무가치 관련 질문 감지 → 우선 검색어 앵커 ──────────────────────────
+  const FINANCIAL_TRIGGER_KEYWORDS = [
+    '기업가치', '재무건전성', '재무안정성', '밸류업',
+    '기업가치제고', '주주환원', '배당', '밸류에이션',
+  ];
+  const PRIORITY_SEARCH_TERMS = [
+    '부채비율', '자기자본비율', '유동비율',
+    '총자산', '자기자본', '영업이익률',
+    'roe', 'roa', '순차입금',
+  ];
+
   // 키워드 확장 및 동의어 처리
   const lowerQuery = query.toLowerCase();
   const isInterestExpenseQuery = lowerQuery.includes('이자비용') || lowerQuery.includes('이자');
@@ -164,7 +183,9 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   const isDivisionQuery = lowerQuery.includes('사업부') || lowerQuery.includes('부문') || lowerQuery.includes('세그먼트') || lowerQuery.includes('건자재') || lowerQuery.includes('건재') || lowerQuery.includes('도료') || lowerQuery.includes('실리콘') || lowerQuery.includes('소재') || lowerQuery.includes('유리');
   const isEbitdaQuery = lowerQuery.includes('ebitda') || lowerQuery.includes('ebidta') || lowerQuery.includes('에비타') || lowerQuery.includes('상각전영업이익') || lowerQuery.includes('상각전');
   const isRoeQuery = lowerQuery.includes('roe') || lowerQuery.includes('자기자본이익률');
-  
+  // 재무건전성·기업가치 관련 질문 감지
+  const isFinancialValueQuery = FINANCIAL_TRIGGER_KEYWORDS.some(kw => lowerQuery.includes(kw));
+
   let targetKeywords = [...keywords];
   if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용', 'interest');
   if (isDebtRatioQuery) targetKeywords.push('부채비율', '부채', '비율', '안정성', '자본', 'debt', 'ratio', 'liabilities', 'equity');
@@ -172,6 +193,11 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment', '건자재', '건축자재', '건재', '도료', '실리콘', '소재', '유리');
   if (isEbitdaQuery) targetKeywords.push('ebitda', 'ebidta', '에비타', '상각전영업이익', '상각전', '영업이익');
   if (isRoeQuery) targetKeywords.push('roe', '자기자본이익률', '수익성', '이익률');
+  // 재무가치 질문이면 핵심 건전성 지표를 검색 앵커로 강제 추가
+  if (isFinancialValueQuery) {
+    targetKeywords.push(...PRIORITY_SEARCH_TERMS);
+    console.log('[FinancialValueQuery] Priority search terms anchored:', PRIORITY_SEARCH_TERMS);
+  }
 
   const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
   const hasYearInQuery = yearKeywords.length > 0;
@@ -246,6 +272,15 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       const isHeader = headerCandidates.some(h => h.index === rowIndex);
       if (isHeader) score += 10;
 
+      // 6. 재무가치 질문일 때 기타포괄손익 관련 행 패널티 (-3000)
+      //    → 점수가 낮아져 자연스럽게 후순위로 밀림
+      if (isFinancialValueQuery && score > 0) {
+        const containsDeprioritized = DEPRIORITIZE_KEYWORDS.some(kw =>
+          rowStr.includes(kw) || cleanRowStr.includes(kw.replace(/\s+/g, ''))
+        );
+        if (containsDeprioritized) score -= 3000;
+      }
+
       if (score > 0) {
         const nearestHeader = headerCandidates
           .filter(h => h.index <= rowIndex)
@@ -265,7 +300,24 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
 
   // 점수 순으로 정렬
   allScoredRows.sort((a, b) => b.score - a.score);
-  
+
+  // 재무가치 질문: 기타포괄손익 청크를 무조건 마지막으로 re-rank (이중 안전장치)
+  if (isFinancialValueQuery) {
+    const primary: ScoredRow[] = [];
+    const deprioritized: ScoredRow[] = [];
+    for (const r of allScoredRows) {
+      const rStr = r.row.join(' ').toLowerCase();
+      const rClean = rStr.replace(/\s+/g, '');
+      const isDepriorRow = DEPRIORITIZE_KEYWORDS.some(kw =>
+        rStr.includes(kw) || rClean.includes(kw.replace(/\s+/g, ''))
+      );
+      if (isDepriorRow) deprioritized.push(r);
+      else primary.push(r);
+    }
+    allScoredRows.splice(0, allScoredRows.length, ...primary, ...deprioritized);
+    console.log(`[Rerank] Financial query: ${primary.length} primary rows / ${deprioritized.length} deprioritized (기타포괄손익) rows pushed to end.`);
+  }
+
   if (allScoredRows.length > 0) {
     console.log('Top 5 scored rows:', allScoredRows.slice(0, 5).map(r => ({
       file: r.fileName,
