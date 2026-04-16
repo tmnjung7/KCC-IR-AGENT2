@@ -272,13 +272,19 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       const isHeader = headerCandidates.some(h => h.index === rowIndex);
       if (isHeader) score += 10;
 
-      // 6. 재무가치 질문일 때 기타포괄손익 관련 행 패널티 (-3000)
-      //    → 점수가 낮아져 자연스럽게 후순위로 밀림
-      if (isFinancialValueQuery && score > 0) {
+      // 6. 재무가치·건전성 질문 시 기타포괄손익 관련 행 컨텍스트에서 완전 제외
+      //    (사용자가 명시적으로 기타포괄손익을 묻는 경우는 제외하지 않음)
+      const shouldFilterDeprioritized =
+        isFinancialValueQuery &&
+        !lowerQuery.includes('기타포괄손익') &&
+        !lowerQuery.includes('후속기간') &&
+        !lowerQuery.includes('재분류');
+
+      if (shouldFilterDeprioritized && score > 0) {
         const containsDeprioritized = DEPRIORITIZE_KEYWORDS.some(kw =>
           rowStr.includes(kw) || cleanRowStr.includes(kw.replace(/\s+/g, ''))
         );
-        if (containsDeprioritized) score -= 3000;
+        if (containsDeprioritized) continue; // 컨텍스트에서 완전 제거
       }
 
       if (score > 0) {

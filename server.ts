@@ -318,73 +318,75 @@ ${context}
         console.log('[SafetyNet] 내부 데이터 부족 감지 → Google Search 자동 활성화');
       }
 
-      const generateWithRetry = async (modelName: string, useSearch = true, maxRetries = 2) => {
-        for (let i = 0; i <= maxRetries; i++) {
-          try {
-            const config: any = {
-              systemInstruction: finalSystemInstruction,
-              temperature: modelName.includes('pro') ? 0.4 : 0.2,
-            };
+      // SSE 스트리밍 헤더 설정
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // nginx 버퍼링 비활성화
 
-            if (useSearch) {
-              config.tools = [{ googleSearch: {} }];
-            }
+      const sendEvent = (data: object) => {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      };
 
-            return await ai.models.generateContent({
-              model: modelName,
-              contents: [{ parts: [{ text: prompt }] }],
-              config: config,
-            });
-          } catch (err: any) {
-            const errorMsg = err.message || "";
-            
-            // Handle search tool errors (some regions or keys might not support it)
-            if (useSearch && (errorMsg.includes('tool') || errorMsg.includes('search') || errorMsg.includes('400'))) {
-              console.warn(`[Search Error] Google Search failed for ${modelName}. Retrying without search...`);
-              return await generateWithRetry(modelName, false, 0);
-            }
+      // 스트림 시작 (fallback 포함)
+      const startStream = async (modelName: string, useSearch: boolean, depth = 0): Promise<{ stream: any; model: string }> => {
+        const config: any = {
+          systemInstruction: finalSystemInstruction,
+          temperature: modelName.includes('pro') ? 0.4 : 0.2,
+        };
+        if (useSearch) config.tools = [{ googleSearch: {} }];
 
-            if ((errorMsg.includes('429') || errorMsg.includes('quota')) && i < maxRetries) {
-              const delay = 2000 * (i + 1); // 2s, 4s 지수 백오프
-              console.warn(`[Quota] 429 error on ${modelName}. Retrying in ${delay / 1000}s... (${i + 1}/${maxRetries})`);
-              await new Promise(resolve => setTimeout(resolve, delay));
-              continue;
-            }
-            // 일반 네트워크 오류도 한 번 재시도
-            if (i < maxRetries && !errorMsg.includes('400') && !errorMsg.includes('401') && !errorMsg.includes('403')) {
-              console.warn(`[Error] Network error on ${modelName}. Retrying in 1s... (${i + 1}/${maxRetries})`);
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              continue;
-            }
-            throw err;
+        try {
+          const stream = await ai.models.generateContentStream({
+            model: modelName,
+            contents: [{ parts: [{ text: prompt }] }],
+            config,
+          });
+          return { stream, model: modelName };
+        } catch (err: any) {
+          const msg = err.message || '';
+          if (depth > 2) throw err;
+
+          if (useSearch && (msg.includes('tool') || msg.includes('search') || msg.includes('400'))) {
+            console.warn(`[Search Error] Retrying without search on ${modelName}...`);
+            return startStream(modelName, false, depth + 1);
           }
+          if ((msg.includes('429') || msg.includes('quota') || msg.includes('limit')) && modelName.includes('pro')) {
+            console.warn('[Fallback] Pro quota → Flash');
+            usedModel = 'gemini-3-flash-preview';
+            return startStream(usedModel, useSearch, depth + 1);
+          }
+          if (depth < 2 && !msg.includes('400') && !msg.includes('401') && !msg.includes('403')) {
+            await new Promise(r => setTimeout(r, 1000 * (depth + 1)));
+            return startStream(modelName, useSearch, depth + 1);
+          }
+          throw err;
         }
       };
 
       try {
-        // 1차 시도: 최고 성능 Pro 모델 (Smart Grounding + 안전장치 적용)
-        response = await generateWithRetry(usedModel, finalUseSearch);
-      } catch (proError: any) {
-        // Pro 모델 할당량 초과 시 Flash 모델로 자동 전환 (Fallback)
-        const errorMsg = proError.message || "";
-        if (errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('limit')) {
-          console.warn("[Fallback] Pro model quota exceeded. Switching to Flash model...");
-          usedModel = "gemini-3-flash-preview";
-          response = await generateWithRetry(usedModel, true, 0);
-        } else {
-          throw proError;
-        }
-      }
+        const { stream, model: activeModel } = await startStream(usedModel, finalUseSearch);
+        usedModel = activeModel;
 
-      res.json({ 
-        text: response.text,
-        groundingMetadata: response.candidates?.[0]?.groundingMetadata,
-        model: usedModel
-      });
+        let lastChunk: any = null;
+        for await (const chunk of stream) {
+          if (chunk.text) sendEvent({ text: chunk.text });
+          lastChunk = chunk;
+        }
+
+        const groundingMetadata = lastChunk?.candidates?.[0]?.groundingMetadata;
+        sendEvent({ done: true, groundingMetadata, model: usedModel });
+        res.end();
+      } catch (error: any) {
+        console.error('Streaming Error:', error);
+        sendEvent({ error: error.message || 'AI 응답 중 오류가 발생했습니다.' });
+        res.end();
+      }
     } catch (error: any) {
-      console.error("Gemini API Error:", error);
-      res.status(500).json({ error: error.message || "AI 응답 중 오류가 발생했습니다." });
-    }
+      console.error("API Setup Error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message || "AI 응답 중 오류가 발생했습니다." });
+      }
   });
 
   // Vite middleware for development

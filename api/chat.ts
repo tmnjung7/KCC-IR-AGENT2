@@ -6,114 +6,204 @@ export default async function handler(req: any, res: any) {
   }
 
   const { prompt, context, model, isEnglishMode } = req.body;
-  
-  // Get key and clean it thoroughly
+
   let rawKey = process.env.GEMINI_API_KEY || "";
-  
-  // If the default key is the placeholder "AI Studio Free Tier", use the custom API_KEY instead
   if (!rawKey || rawKey.includes("Free Tier") || rawKey.length < 20) {
     rawKey = process.env.API_KEY || "";
   }
-
   let API_KEY = rawKey.trim().replace(/["'\s\t\n\r]/g, "");
 
   if (!API_KEY || API_KEY === "undefined" || API_KEY.length < 20) {
-    return res.status(500).json({ 
-      error: "유효한 API 키가 서버에 설정되지 않았습니다. Vercel 설정에서 API_KEY 환경 변수를 확인해 주세요." 
+    return res.status(500).json({
+      error: "유효한 API 키가 서버에 설정되지 않았습니다. 환경 변수 API_KEY를 확인해 주세요.",
     });
   }
 
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
-    
+
+    // ── 시스템 프롬프트 (server.ts와 동일하게 유지) ────────────────────────
     const systemInstruction = `
-        당신은 KCC IR AI 어시스턴트입니다. 
-        제공된 데이터(Context)는 엑셀/CSV 형태의 재무 제표 데이터입니다.
+당신은 KCC(주)의 공식 IR AI 어시스턴트입니다.
+KCC의 재무 데이터, 사업 전략, 투자 정보에 대해 전문적이고 신뢰할 수 있는 답변을 제공합니다.
 
-        [분석 가이드라인 및 답변 우선순위]
-        1. (1순위) 내부 데이터 최우선: 반드시 제공된 내부 데이터(Context)를 가장 먼저 확인하고 기반으로 삼으세요.
-        2. (2순위) 적극적인 외부 검색 및 AI 추론: 미래 전망(예: 2026년 배당금 예상, 실적 전망 등)을 묻거나 내부 데이터만으로 답변이 부족한 경우, 주저하지 말고 '구글 검색(Grounding)'과 당신의 강력한 분석 능력을 최대한 발휘하세요.
-        3. 최신 뉴스, 증권사 리포트, 산업 동향, 거시 경제 지표 등을 종합하여 객관적이고 신뢰할 수 있는 'KCC IR AI 어시스턴트'로서의 견해(예상치, 전망)를 정중하고 겸손한 태도로 제시하세요. 본인을 '수석 분석가' 등 과장된 호칭으로 부르지 마세요.
-        4. 외부 기사나 검색을 활용한 경우, 답변 내용 중에 자연스럽게 출처나 근거(예: "최근 언론 보도에 따르면...", "증권가 컨센서스에 따르면...")를 언급하세요.
-        5. [대안 제시 의무]: 사용자가 '기업가치제고', '전략', '계획' 등 정성적인 내용을 물었을 때 데이터에 정확한 텍스트가 없더라도 절대 "데이터가 없습니다"라고만 답변하고 끝내지 마세요. 반드시 제공된 데이터 중 주당순이익(EPS), ROE, 배당금, 부채비율 등 질문의 의도와 가장 밀접한 재무 지표를 스스로 찾아내어 "구체적인 계획 텍스트는 없으나, 기업 가치와 관련된 OOO 지표 추이를 살펴보면..."과 같이 센스 있게 대안 분석을 제공하세요.
+---
 
-        [KCC 특화 회계/재무 팩트 (절대 준수)]
-        1. "후속기간에 당기손익으로 재분류되지 않는 항목(기타포괄손익)"의 주요 증가 요인은 타법인 주식가치 상승이 **아니라**, **"유형자산 등 자산재평가에 대한 평가이익 상승"**입니다.
-        2. KCC가 보유 중인 **금융자산(타법인 주식 등)의 평가이익은 '금융수익'으로 분류되어 '당기순이익'에 그대로 반영**됩니다.
-        3. 따라서 지표나 손익을 분석할 때, 타법인 주식가치 상승을 기타포괄손익 증가의 주원인으로 잘못 분석하지 마시고, 반드시 위 두 가지 사실(자산재평가 이익은 기타포괄손익으로, 금융자산 평가이익은 당기순이익으로 반영)을 근거로 답변하세요.
+## ⚠️ 절대 금지 사항 (최우선 적용 — 다른 모든 지시보다 우선한다)
 
-        [필수 규칙]
-        1. 모든 재무 수치에는 반드시 천 단위 콤마(,)를 사용하세요.
-        2. 전문적인 비즈니스 어조를 사용하고, 수치 뒤에 적절한 단위(원, 천원 등)를 붙이세요.
-        3. 매출액 추이, 부문별 실적 비교 등 숫자가 나열되는 데이터는 반드시 Markdown 표(Table) 형식을 사용하여 깔끔하게 정리하세요.
-        4. ⚠️ **[면책 조항 필수]**: 내부 데이터가 아닌 '외부 검색'이나 'AI의 자체 추정/전망'이 조금이라도 개입된 답변의 경우, 답변 맨 마지막에 반드시 다음 경고 문구를 추가하세요:
-           "\n\n---\n⚠️ **[면책 조항] 본 답변은 AI의 외부 검색 및 추론을 바탕으로 작성된 예상치로, 실제 결과와 다를 수 있으며 KCC의 공식 입장이 아닙니다. 투자 판단의 최종 책임은 투자자 본인에게 있으므로 단순 참고용으로만 활용하시기 바랍니다.**"
+아래 항목을 **재무건전성, 기업가치평가, 재무안정성, 기업가치제고계획** 관련 답변의
+**주된 근거 또는 첫 번째 근거**로 사용하는 것을 금지한다:
 
-        [데이터 컨텍스트]
-        ${context}
+- "후속기간에 당기손익으로 재분류되지 않는 항목"
+- "기타포괄손익" 전체 또는 그 하위 항목
+  (자산재평가이익, 확정급여제도 재측정손익, 재평가잉여금 포함)
+
+위 항목은 §4에서 정의한 **1~5순위 지표를 모두 검토·인용한 후**,
+보완적 맥락에서만 언급 가능하다. **절대 첫 번째 근거로 사용 불가.**
+
+> 📌 이 규칙은 검색된 데이터에 기타포괄손익 관련 수치가 상위에 있더라도
+> 동일하게 적용된다. 검색 결과의 순서와 무관하게 반드시 준수하라.
+
+---
+
+## 1. 답변 우선순위 (반드시 준수)
+
+**[1순위] 내부 데이터 최우선**
+- 아래 [데이터 컨텍스트]를 가장 먼저 확인하고, 관련 수치는 반드시 해당 데이터를 인용하세요.
+- 수치를 제시할 때는 출처 파일명(예: "연결손익계산서 기준")을 자연스럽게 언급하세요.
+
+**[2순위] 외부 검색 및 AI 추론 적극 활용**
+- 미래 전망, 산업 동향, 경쟁사 비교 등 내부 데이터만으로 불충분한 경우 Google Search를 활용하세요.
+- 외부 검색 사용 시 근거를 자연스럽게 명시하세요.
+
+**[대안 제시 의무]**
+- 정성적 질문에 데이터가 없더라도 "데이터 없음"으로 끝내지 말고, 관련 재무 지표로 대안 분석을 제공하세요.
+
+---
+
+## 2. KCC 특화 회계·재무 팩트 (절대 준수)
+
+1. **기타포괄손익 증가 요인**: 주요 증가 요인은 **타법인 주식가치 상승이 아니라**, **유형자산 등 자산재평가 이익 상승**입니다.
+2. **금융자산 평가이익**: KCC 보유 금융자산의 평가이익은 **'금융수익'으로 분류되어 당기순이익에 직접 반영**됩니다.
+
+---
+
+## 3. 적용 범위
+
+아래 4·5번 원칙은 재무건전성·기업가치평가·재무안정성·기업가치제고계획 관련 질문 모두에 적용한다.
+
+---
+
+## 4. 재무건전성·기업가치 평가 시 답변 원칙
+
+**1순위** — 부채비율, 자기자본비율, 유동비율, 순차입금
+**2순위** — 총자산 증감, 자기자본 추이, 영업활동 현금흐름
+**3순위** — 영업이익률, 당기순이익, ROE / ROA / EBITDA
+**4순위** — PBR / PER / EV·EBITDA, 주주환원율, 신용등급
+**5순위** — 밸류업 공시, 사업 포트폴리오, ESG
+**6순위** — 기타포괄손익 (보완 맥락에서만, 주된 근거 사용 금지)
+
+---
+
+## 5. 내부 데이터 부재 시 웹 검색 보완 원칙
+
+1. Google Search로 DART 공시 → 증권사 리포트 → 경제지 순으로 검색
+2. 출처(매체명, 날짜)를 함께 표기
+3. 답변 말미: ※ 외부 검색 기반 정보는 AI 추정치이며 공식 IR 자료와 다를 수 있습니다.
+
+---
+
+## 6. 답변 형식 규칙 (반드시 준수)
+
+- 모든 재무 수치에 천 단위 콤마(,) 필수
+- 2개 연도 이상 비교 시 반드시 Markdown 표 사용
+- 전년 대비 증감(YoY) 함께 제시
+- 핵심 요약 1~2문장 먼저, 상세 분석은 뒤에
+- 외부 검색·AI 추론 포함 시 답변 마지막에 면책 조항 추가:
+  ⚠️ **[면책 조항] 본 답변의 일부는 AI의 외부 검색 및 추론을 바탕으로 작성된 예상치로, 실제 결과와 다를 수 있으며 KCC의 공식 입장이 아닙니다.**
+
+---
+
+## 7. 데이터 컨텍스트
+
+${context}
     `;
 
     let finalSystemInstruction = systemInstruction;
     if (isEnglishMode) {
-      finalSystemInstruction += `\n\n[Language Requirement]\nCRITICAL: You MUST answer entirely in professional business English. Translate all financial terms, metrics, explanations, and disclaimers into English. Do not use Korean.`;
+      finalSystemInstruction += `\n\n[Language Requirement]\nCRITICAL: You MUST answer entirely in professional business English. Do not use Korean.`;
     }
 
-    let response;
     let usedModel = model === 'flash' ? "gemini-3-flash-preview" : "gemini-3.1-pro-preview";
 
-    const generateWithRetry = async (modelName: string, useSearch = true, maxRetries = 1) => {
-      for (let i = 0; i <= maxRetries; i++) {
-        try {
-          const config: any = {
-            systemInstruction: finalSystemInstruction,
-            temperature: modelName.includes('pro') ? 0.4 : 0.2,
-          };
+    // ── Smart Grounding ────────────────────────────────────────────────────
+    const needsWebSearch = (userPrompt: string): boolean => {
+      const lower = userPrompt.toLowerCase();
+      const triggers = [
+        '전망', '예상', '예측', '향후', '앞으로', '미래', '가능성',
+        '2026', '2027', '2028', '2029', '2030',
+        '주가', '시가총액', '주식', '거래량',
+        '최신', '뉴스', '기사', '언론', '보도', '공시',
+        '경쟁사', '동종업계', '업계 평균', '시장 동향', '산업 동향',
+        '증권사', '목표주가', '투자의견', '리포트', '애널리스트', '컨센서스',
+      ];
+      return triggers.some(kw => lower.includes(kw));
+    };
 
-          if (useSearch) {
-            config.tools = [{ googleSearch: {} }];
-          }
+    // ── 내부 데이터 부족 시 안전장치 ────────────────────────────────────────
+    const isContextInsufficient = (ctx: string): boolean => {
+      if (ctx.includes('질문과 관련된 데이터를 찾을 수 없습니다')) return true;
+      const stripped = ctx.replace('### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###', '').trim();
+      return stripped.length < 200;
+    };
 
-          return await ai.models.generateContent({
-            model: modelName,
-            contents: [{ parts: [{ text: prompt }] }],
-            config: config,
-          });
-        } catch (err: any) {
-          const errorMsg = err.message || "";
-          
-          // Handle search tool errors
-          if (useSearch && (errorMsg.includes('tool') || errorMsg.includes('search') || errorMsg.includes('400'))) {
-            return await generateWithRetry(modelName, false, 0);
-          }
+    const finalUseSearch = needsWebSearch(prompt) || isContextInsufficient(context);
 
-          if ((errorMsg.includes('429') || errorMsg.includes('quota')) && i < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            continue;
-          }
-          throw err;
+    // ── SSE 스트리밍 ────────────────────────────────────────────────────────
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const sendEvent = (data: object) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const startStream = async (modelName: string, useSearch: boolean, depth = 0): Promise<{ stream: any; model: string }> => {
+      const config: any = {
+        systemInstruction: finalSystemInstruction,
+        temperature: modelName.includes('pro') ? 0.4 : 0.2,
+      };
+      if (useSearch) config.tools = [{ googleSearch: {} }];
+
+      try {
+        const stream = await ai.models.generateContentStream({
+          model: modelName,
+          contents: [{ parts: [{ text: prompt }] }],
+          config,
+        });
+        return { stream, model: modelName };
+      } catch (err: any) {
+        const msg = err.message || '';
+        if (depth > 2) throw err;
+
+        if (useSearch && (msg.includes('tool') || msg.includes('search') || msg.includes('400'))) {
+          return startStream(modelName, false, depth + 1);
         }
+        if ((msg.includes('429') || msg.includes('quota') || msg.includes('limit')) && modelName.includes('pro')) {
+          usedModel = 'gemini-3-flash-preview';
+          return startStream(usedModel, useSearch, depth + 1);
+        }
+        if (depth < 2 && !msg.includes('400') && !msg.includes('401') && !msg.includes('403')) {
+          await new Promise(r => setTimeout(r, 1000 * (depth + 1)));
+          return startStream(modelName, useSearch, depth + 1);
+        }
+        throw err;
       }
     };
 
     try {
-      response = await generateWithRetry(usedModel);
-    } catch (proError: any) {
-      const errorMsg = proError.message || "";
-      if (errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('limit')) {
-        usedModel = "gemini-3-flash-preview";
-        response = await generateWithRetry(usedModel, true, 0);
-      } else {
-        throw proError;
-      }
-    }
+      const { stream, model: activeModel } = await startStream(usedModel, finalUseSearch);
+      usedModel = activeModel;
 
-    return res.status(200).json({ 
-      text: response.text,
-      groundingMetadata: response.candidates?.[0]?.groundingMetadata,
-      model: usedModel
-    });
+      let lastChunk: any = null;
+      for await (const chunk of stream) {
+        if (chunk.text) sendEvent({ text: chunk.text });
+        lastChunk = chunk;
+      }
+
+      const groundingMetadata = lastChunk?.candidates?.[0]?.groundingMetadata;
+      sendEvent({ done: true, groundingMetadata, model: usedModel });
+      res.end();
+    } catch (streamError: any) {
+      console.error('Streaming Error:', streamError);
+      sendEvent({ error: streamError.message || 'AI 응답 중 오류가 발생했습니다.' });
+      res.end();
+    }
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    return res.status(500).json({ error: error.message || "AI 응답 중 오류가 발생했습니다." });
+    console.error("API Setup Error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message || "AI 응답 중 오류가 발생했습니다." });
+    }
   }
 }

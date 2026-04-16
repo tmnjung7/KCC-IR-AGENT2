@@ -2,7 +2,8 @@ export const getGeminiResponse = async (
   prompt: string,
   context: string,
   model: 'pro' | 'flash' = 'pro',
-  isEnglishMode: boolean = false
+  isEnglishMode: boolean = false,
+  onChunk?: (text: string) => void
 ) => {
   const MAX_RETRIES = 2;
 
@@ -10,9 +11,7 @@ export const getGeminiResponse = async (
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, context, model, isEnglishMode }),
       });
 
@@ -21,30 +20,61 @@ export const getGeminiResponse = async (
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
-        } catch (e) {
+        } catch {
           errorMessage = `서버 오류 (${response.status}): ${response.statusText}`;
         }
-        // 할당량 초과는 재시도해도 소용없으므로 즉시 throw
         if (response.status === 429) throw new Error(errorMessage);
         throw new Error(errorMessage);
       }
 
+      const contentType = response.headers.get('content-type') || '';
+
+      // ── SSE 스트리밍 응답 처리 ──────────────────────────────────────────
+      if (contentType.includes('text/event-stream')) {
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        const result: { text: string; groundingMetadata?: any; model?: string } = { text: '' };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim();
+            if (!raw) continue;
+
+            let data: any;
+            try { data = JSON.parse(raw); } catch { continue; }
+
+            if (data.error) throw new Error(data.error);
+
+            if (data.done) {
+              result.groundingMetadata = data.groundingMetadata;
+              result.model = data.model;
+            } else if (data.text) {
+              result.text += data.text;
+              onChunk?.(data.text);
+            }
+          }
+        }
+        return result;
+      }
+
+      // ── 일반 JSON 응답 처리 (fallback) ─────────────────────────────────
       const data = await response.json();
+      if (data.text) onChunk?.(data.text);
       return data;
+
     } catch (error: any) {
       console.error(`Gemini API Error (attempt ${attempt}/${MAX_RETRIES}):`, error);
-
-      // 할당량 초과(429)는 재시도 없이 바로 상위로 전달
-      if (error.message?.includes('429') || error.message?.includes('quota')) {
-        throw error;
-      }
-
-      // 마지막 시도까지 실패했으면 throw
-      if (attempt === MAX_RETRIES) {
-        throw error;
-      }
-
-      // 재시도 전 1.5초 대기 (첫 질문 cold-start 오류 대응)
+      if (error.message?.includes('429') || error.message?.includes('quota')) throw error;
+      if (attempt === MAX_RETRIES) throw error;
       console.warn(`[Retry] ${attempt}/${MAX_RETRIES - 1} 재시도 중... 1.5초 대기`);
       await new Promise(resolve => setTimeout(resolve, 1500));
     }

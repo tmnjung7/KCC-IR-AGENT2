@@ -214,6 +214,7 @@ export default function App() {
   ];
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isStreamingRef = useRef(false); // 스트리밍 중 중복 전송 방지
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -336,7 +337,7 @@ export default function App() {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isStreamingRef.current) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -345,70 +346,93 @@ export default function App() {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // 빈 어시스턴트 메시지를 즉시 추가 → 스트리밍 청크로 채워짐
+    const assistantId = (Date.now() + 1).toString();
+    const placeholderMessage: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, userMessage, placeholderMessage]);
     setInput('');
     setError(null);
     setIsLoading(true);
+    isStreamingRef.current = true;
+    let chunkCount = 0;
 
     try {
-      // 질문과 관련된 데이터만 추출하여 컨텍스트 구성 (대용량 데이터 대응)
       const context = searchContext(allFileData, input);
-      const responseData = await getGeminiResponse(input, context, selectedModel, isEnglishMode);
-      
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: responseData.text || "답변을 생성할 수 없습니다.",
-        groundingMetadata: responseData.groundingMetadata,
-        timestamp: new Date(),
-        model: responseData.model // 서버에서 받은 모델 정보 저장
-      };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      const responseData = await getGeminiResponse(
+        input,
+        context,
+        selectedModel,
+        isEnglishMode,
+        (chunk: string) => {
+          chunkCount++;
+          // 첫 청크 도착 시 로딩 인디케이터 해제 → 스트리밍 텍스트가 바로 보임
+          if (chunkCount === 1) setIsLoading(false);
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === assistantId
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        }
+      );
+
+      // 스트리밍 완료 후 최종 메타데이터(grounding, model) 업데이트
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: responseData?.text || msg.content || '답변을 생성할 수 없습니다.',
+                groundingMetadata: responseData?.groundingMetadata,
+                model: responseData?.model,
+              }
+            : msg
+        )
+      );
     } catch (err: any) {
       console.error("Chat Error:", err);
       let errorMessage = "오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
-      
-      // 서버에서 온 에러 메시지가 JSON 형태일 수 있으므로 파싱 시도
+
       let rawError = err.message || "";
       let parsedError = rawError;
       try {
-        // "AI 응답 중 오류가 발생했습니다: {"error":...}" 형태인 경우 JSON 부분만 추출 시도
         const jsonMatch = rawError.match(/\{.*\}/);
         if (jsonMatch) {
           const json = JSON.parse(jsonMatch[0]);
-          if (json.error && typeof json.error === 'string') {
-            parsedError = json.error;
-          } else if (json.error && json.error.message) {
-            parsedError = json.error.message;
-          }
+          parsedError = (typeof json.error === 'string' ? json.error : json.error?.message) || rawError;
         }
-      } catch (e) {
-        console.warn("Error parsing error JSON:", e);
-      }
+      } catch { /* ignore */ }
 
       if (parsedError.includes('429') || parsedError.includes('quota')) {
-        errorMessage = "현재 AI 요청량이 많아 일시적으로 제한되었습니다. 약 1분 정도 기다리신 후 다시 질문해 주시면 감사하겠습니다. (무료 티어 할당량 제한)";
+        errorMessage = "현재 AI 요청량이 많아 일시적으로 제한되었습니다. 약 1분 후 다시 시도해 주세요. (무료 티어 할당량 제한)";
       } else if (parsedError.includes('413')) {
-        errorMessage = "데이터가 너무 방대하여 분석에 실패했습니다. 질문을 더 구체적으로(예: 특정 연도나 항목 지정) 해주세요.";
+        errorMessage = "데이터가 너무 방대합니다. 질문을 더 구체적으로(특정 연도나 항목 지정) 해주세요.";
       } else if (parsedError.includes('404')) {
         errorMessage = "AI 모델을 찾을 수 없습니다. 시스템 설정을 확인 중입니다.";
       } else if (parsedError.includes('500')) {
         errorMessage = "AI 서버에 일시적인 문제가 발생했습니다. 다시 시도해 주세요.";
       }
-      
+
       setError(errorMessage);
-      
-      // 사용자에게도 메시지로 표시
-      const errorAssistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `⚠️ ${errorMessage}`,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorAssistantMessage]);
+      // placeholder 메시지를 에러 메시지로 교체
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === assistantId
+            ? { ...msg, content: `⚠️ ${errorMessage}` }
+            : msg
+        )
+      );
     } finally {
       setIsLoading(false);
+      isStreamingRef.current = false;
     }
   };
 
