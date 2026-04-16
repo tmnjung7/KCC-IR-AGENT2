@@ -303,6 +303,21 @@ ${context}
 
       const shouldUseSearch = needsWebSearch(prompt);
 
+      // 안전장치: 내부 데이터가 부족하면 웹 검색으로 자동 전환
+      const isContextInsufficient = (ctx: string): boolean => {
+        // 명시적 데이터 없음 메시지
+        if (ctx.includes('질문과 관련된 데이터를 찾을 수 없습니다')) return true;
+        // 헤더 제거 후 실질적인 내용이 200자 미만이면 부족하다고 판단
+        const stripped = ctx.replace('### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###', '').trim();
+        if (stripped.length < 200) return true;
+        return false;
+      };
+
+      const finalUseSearch = shouldUseSearch || isContextInsufficient(context);
+      if (!shouldUseSearch && finalUseSearch) {
+        console.log('[SafetyNet] 내부 데이터 부족 감지 → Google Search 자동 활성화');
+      }
+
       const generateWithRetry = async (modelName: string, useSearch = true, maxRetries = 2) => {
         for (let i = 0; i <= maxRetries; i++) {
           try {
@@ -347,8 +362,8 @@ ${context}
       };
 
       try {
-        // 1차 시도: 최고 성능 Pro 모델 (Smart Grounding 적용)
-        response = await generateWithRetry(usedModel, shouldUseSearch);
+        // 1차 시도: 최고 성능 Pro 모델 (Smart Grounding + 안전장치 적용)
+        response = await generateWithRetry(usedModel, finalUseSearch);
       } catch (proError: any) {
         // Pro 모델 할당량 초과 시 Flash 모델로 자동 전환 (Fallback)
         const errorMsg = proError.message || "";
