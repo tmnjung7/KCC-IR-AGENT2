@@ -272,15 +272,14 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       const isHeader = headerCandidates.some(h => h.index === rowIndex);
       if (isHeader) score += 10;
 
-      // 6. 재무가치·건전성 질문 시 기타포괄손익 관련 행 컨텍스트에서 완전 제외
-      //    (사용자가 명시적으로 기타포괄손익을 묻는 경우는 제외하지 않음)
-      const shouldFilterDeprioritized =
-        isFinancialValueQuery &&
-        !lowerQuery.includes('기타포괄손익') &&
-        !lowerQuery.includes('후속기간') &&
-        !lowerQuery.includes('재분류');
+      // 6. 기타포괄손익 관련 행 컨텍스트 완전 제외 (기본값)
+      //    사용자가 기타포괄손익을 명시적으로 물어볼 때만 포함
+      const userExplicitlyAskedOCI =
+        lowerQuery.includes('기타포괄손익') ||
+        lowerQuery.includes('후속기간') ||
+        lowerQuery.includes('재분류');
 
-      if (shouldFilterDeprioritized && score > 0) {
+      if (!userExplicitlyAskedOCI && score > 0) {
         const containsDeprioritized = DEPRIORITIZE_KEYWORDS.some(kw =>
           rowStr.includes(kw) || cleanRowStr.includes(kw.replace(/\s+/g, ''))
         );
