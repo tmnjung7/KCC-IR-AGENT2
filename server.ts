@@ -325,7 +325,7 @@ ${context}
           '전망', '예상', '예측', '향후', '앞으로', '미래', '가능성', '기대',
           '2026', '2027', '2028', '2029', '2030',
           // 시장·주가 데이터 (내부 CSV에 없는 정보)
-          '주가', '시가총액', '주식', '거래량', '상장',
+          '주가', '코스피', '코스닥', '시가총액', '주식', '거래량', '상장',
           // 최신 뉴스·공시
           '최신', '뉴스', '기사', '언론', '보도', '공시',
           '최근 발표', '어제', '오늘', '이번 주', '이번 달',
@@ -362,9 +362,13 @@ ${context}
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no'); // nginx 버퍼링 비활성화
 
+      // 클라이언트 연결 끊김 감지 → 스트리밍 즉시 중단
+      let clientAborted = false;
+      req.on('close', () => { clientAborted = true; });
+
       const sendEvent = (data: object) => {
+        if (clientAborted) return;
         res.write(`data: ${JSON.stringify(data)}\n\n`);
-        // flush()로 청크를 즉시 클라이언트에 전송 (버퍼링 방지)
         if (typeof (res as any).flush === 'function') (res as any).flush();
       };
 
@@ -410,16 +414,19 @@ ${context}
 
         let lastChunk: any = null;
         for await (const chunk of stream) {
+          if (clientAborted) break;
           if (chunk.text) sendEvent({ text: chunk.text });
           lastChunk = chunk;
         }
 
-        const groundingMetadata = lastChunk?.candidates?.[0]?.groundingMetadata;
-        sendEvent({ done: true, groundingMetadata, model: usedModel });
+        if (!clientAborted) {
+          const groundingMetadata = lastChunk?.candidates?.[0]?.groundingMetadata;
+          sendEvent({ done: true, groundingMetadata, model: usedModel });
+        }
         res.end();
       } catch (error: any) {
         console.error('Streaming Error:', error);
-        sendEvent({ error: error.message || 'AI 응답 중 오류가 발생했습니다.' });
+        if (!clientAborted) sendEvent({ error: error.message || 'AI 응답 중 오류가 발생했습니다.' });
         res.end();
       }
     } catch (error: any) {

@@ -192,7 +192,13 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   console.log('[GlobalAnchor] Core financial metrics always anchored');
 
   const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
-  const hasYearInQuery = yearKeywords.length > 0;
+
+  // 핵심 재무지표 우선 가중치 상수 (루프 밖에서 한 번만 정의)
+  const CORE_PRIORITY_METRICS = [
+    '부채비율', '자기자본비율', '유동비율', '당좌비율',
+    '영업이익률', '영업이익', '매출액', '매출',
+    '자기자본', '순차입금', 'roe', 'roa', 'ebitda',
+  ];
 
   // 모든 파일의 모든 행을 점수화하여 수집
   interface ScoredRow {
@@ -265,12 +271,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       const isHeader = headerCandidates.some(h => h.index === rowIndex);
       if (isHeader) score += 10;
 
-      // 5-1. 핵심 재무지표 우선 가중치 (모든 쿼리에 항상 적용 — 기타포괄손익보다 항상 상위에 오도록)
-      const CORE_PRIORITY_METRICS = [
-        '부채비율', '자기자본비율', '유동비율', '당좌비율',
-        '영업이익률', '영업이익', '매출액', '매출',
-        '자기자본', '순차입금', 'roe', 'roa', 'ebitda',
-      ];
+      // 5-1. 핵심 재무지표 우선 가중치 (모든 쿼리에 항상 적용)
       const hasCoreMetric = CORE_PRIORITY_METRICS.some(metric =>
         rowStr.includes(metric) || cleanRowStr.includes(metric.replace(/\s+/g, ''))
       );
