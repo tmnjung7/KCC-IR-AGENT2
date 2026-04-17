@@ -390,7 +390,7 @@ export default function App() {
           msg.id === assistantId
             ? {
                 ...msg,
-                content: responseData?.text || msg.content || '답변을 생성할 수 없습니다.',
+                content: responseData?.text || msg.content || '일시적인 오류로 응답을 받지 못했습니다. 동일한 질문을 다시 시도해 주세요.',
                 groundingMetadata: responseData?.groundingMetadata,
                 model: responseData?.model,
               }
