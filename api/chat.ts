@@ -169,13 +169,31 @@ ${context}
     };
 
     // ── 내부 데이터 부족 시 안전장치 ────────────────────────────────────────
-    const isContextInsufficient = (ctx: string): boolean => {
+    // 컨텍스트 길이가 아닌 "질문 키워드가 컨텍스트에 실제로 있는가"로 판단
+    // (핵심지표 전역 앵커로 인해 컨텍스트가 항상 길어지는 문제 해결)
+    const GENERIC_FINANCIAL_TERMS = [
+      '부채비율', '자기자본비율', '유동비율', '영업이익', '영업이익률',
+      '매출액', '매출', '자기자본', '총자산', 'roe', 'roa', 'ebitda', '순차입금',
+    ];
+    const isContextInsufficient = (ctx: string, userPrompt: string): boolean => {
       if (ctx.includes('질문과 관련된 데이터를 찾을 수 없습니다')) return true;
       const stripped = ctx.replace('### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###', '').trim();
-      return stripped.length < 200;
+      if (stripped.length < 200) return true;
+      // 질문 고유 키워드(일반 재무지표 제외)가 컨텍스트에 없으면 웹 검색 필요
+      const queryWords = userPrompt.toLowerCase().replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+      const uniqueWords = queryWords.filter(w => !GENERIC_FINANCIAL_TERMS.some(t => w.includes(t)));
+      if (uniqueWords.length > 0) {
+        const ctxLower = stripped.toLowerCase();
+        const hasRelevantContent = uniqueWords.some(w => ctxLower.includes(w));
+        if (!hasRelevantContent) {
+          console.log('[SafetyNet] 컨텍스트에 질문 키워드 없음 → Google Search 활성화:', uniqueWords.slice(0, 5));
+          return true;
+        }
+      }
+      return false;
     };
 
-    const finalUseSearch = needsWebSearch(prompt) || isContextInsufficient(context);
+    const finalUseSearch = needsWebSearch(prompt) || isContextInsufficient(context, prompt);
 
     // ── SSE 스트리밍 ────────────────────────────────────────────────────────
     res.setHeader('Content-Type', 'text/event-stream');
