@@ -310,8 +310,8 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   // 점수 순으로 정렬
   allScoredRows.sort((a, b) => b.score - a.score);
 
-  // 재무가치 질문: 기타포괄손익 청크를 무조건 마지막으로 re-rank (이중 안전장치)
-  if (isFinancialValueQuery) {
+  // 기타포괄손익 청크를 무조건 마지막으로 re-rank (모든 쿼리에 항상 적용)
+  {
     const primary: ScoredRow[] = [];
     const deprioritized: ScoredRow[] = [];
     for (const r of allScoredRows) {
@@ -324,7 +324,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       else primary.push(r);
     }
     allScoredRows.splice(0, allScoredRows.length, ...primary, ...deprioritized);
-    console.log(`[Rerank] Financial query: ${primary.length} primary rows / ${deprioritized.length} deprioritized (기타포괄손익) rows pushed to end.`);
+    console.log(`[Rerank] ${primary.length} primary rows / ${deprioritized.length} deprioritized (기타포괄손익) rows pushed to end.`);
   }
 
   if (allScoredRows.length > 0) {
