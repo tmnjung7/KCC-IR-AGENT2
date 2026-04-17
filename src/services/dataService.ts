@@ -164,20 +164,11 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     '재평가잉여금',
   ];
 
-  // ── 재무·주가·시장 관련 질문 감지 → 핵심지표 우선 검색어 앵커 ──────────
-  const FINANCIAL_TRIGGER_KEYWORDS = [
-    // 재무건전성·기업가치
-    '기업가치', '재무건전성', '재무안정성', '밸류업',
-    '기업가치제고', '주주환원', '배당', '밸류에이션',
-    // 주가·시장·투자 (추가)
-    '주가', '코스피', '코스닥', '시장', '트렌드', '주식',
-    '시가총액', '투자', '상장', '재무현황', '재무',
-    '실적', '투자매력', '저평가', '고평가',
-  ];
+  // ── 핵심 재무지표 (모든 쿼리에 항상 앵커) ────────────────────────────────
   const PRIORITY_SEARCH_TERMS = [
     '부채비율', '자기자본비율', '유동비율',
-    '총자산', '자기자본', '영업이익률',
-    'roe', 'roa', '순차입금',
+    '총자산', '자기자본', '영업이익률', '영업이익',
+    '매출액', 'roe', 'roa', '순차입금', 'ebitda',
   ];
 
   // 키워드 확장 및 동의어 처리
@@ -188,8 +179,6 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   const isDivisionQuery = lowerQuery.includes('사업부') || lowerQuery.includes('부문') || lowerQuery.includes('세그먼트') || lowerQuery.includes('건자재') || lowerQuery.includes('건재') || lowerQuery.includes('도료') || lowerQuery.includes('실리콘') || lowerQuery.includes('소재') || lowerQuery.includes('유리');
   const isEbitdaQuery = lowerQuery.includes('ebitda') || lowerQuery.includes('ebidta') || lowerQuery.includes('에비타') || lowerQuery.includes('상각전영업이익') || lowerQuery.includes('상각전');
   const isRoeQuery = lowerQuery.includes('roe') || lowerQuery.includes('자기자본이익률');
-  // 재무건전성·기업가치 관련 질문 감지
-  const isFinancialValueQuery = FINANCIAL_TRIGGER_KEYWORDS.some(kw => lowerQuery.includes(kw));
 
   let targetKeywords = [...keywords];
   if (isInterestExpenseQuery) targetKeywords.push('이자비용', '이자', '금융비용', '비용', 'interest');
@@ -198,11 +187,9 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment', '건자재', '건축자재', '건재', '도료', '실리콘', '소재', '유리');
   if (isEbitdaQuery) targetKeywords.push('ebitda', 'ebidta', '에비타', '상각전영업이익', '상각전', '영업이익');
   if (isRoeQuery) targetKeywords.push('roe', '자기자본이익률', '수익성', '이익률');
-  // 재무가치 질문이면 핵심 건전성 지표를 검색 앵커로 강제 추가
-  if (isFinancialValueQuery) {
-    targetKeywords.push(...PRIORITY_SEARCH_TERMS);
-    console.log('[FinancialValueQuery] Priority search terms anchored:', PRIORITY_SEARCH_TERMS);
-  }
+  // 모든 쿼리에 핵심 재무지표를 항상 검색 앵커로 추가
+  targetKeywords.push(...PRIORITY_SEARCH_TERMS);
+  console.log('[GlobalAnchor] Core financial metrics always anchored');
 
   const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
   const hasYearInQuery = yearKeywords.length > 0;
