@@ -164,15 +164,29 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
     '재평가잉여금',
   ];
 
-  // ── 핵심 재무지표 (모든 쿼리에 항상 앵커) ────────────────────────────────
+  // ── 재무/경영 관련 질문일 때만 핵심지표 앵커 적용 (전역 주입 제거) ──────
+  // 세종공장 폐쇄 등 사실 확인/뉴스 질문은 앵커 미적용 → 웹검색 안전망 정상 작동
   const PRIORITY_SEARCH_TERMS = [
     '부채비율', '자기자본비율', '유동비율',
     '총자산', '자기자본', '영업이익률', '영업이익',
     '매출액', 'roe', 'roa', '순차입금', 'ebitda',
   ];
-
+  const FINANCIAL_ANCHOR_KEYWORDS = [
+    // 재무지표
+    '재무', '실적', '지표', '현황', '이익', '영업', '수익', '비용',
+    '자본', '부채', '자산', '유동', '배당', '주주환원',
+    // 기업가치·밸류에이션
+    '기업가치', '밸류', '평가', '투자', '기업', '경영',
+    // 시장·주가
+    '주가', '코스피', '코스닥', '주식', '시가총액', '증권',
+    // 사업부문
+    '사업', '부문', '건자재', '도료', '실리콘', '모멘티브',
+    // 성장·전략
+    '성장', '전략', '추이', '변화', '성과', '분석',
+  ];
   // 키워드 확장 및 동의어 처리
   const lowerQuery = query.toLowerCase();
+  const isFinancialQuery = FINANCIAL_ANCHOR_KEYWORDS.some(kw => lowerQuery.includes(kw));
   const isInterestExpenseQuery = lowerQuery.includes('이자비용') || lowerQuery.includes('이자');
   const isDebtRatioQuery = lowerQuery.includes('부채비율') || lowerQuery.includes('부채') || lowerQuery.includes('비율') || lowerQuery.includes('debt') || lowerQuery.includes('ratio');
   const isSalesQuery = lowerQuery.includes('매출') || lowerQuery.includes('수익') || lowerQuery.includes('실적') || lowerQuery.includes('영업이익');
@@ -187,9 +201,11 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
   if (isDivisionQuery) targetKeywords.push('사업부', '부문', '세그먼트', 'division', 'segment', '건자재', '건축자재', '건재', '도료', '실리콘', '소재', '유리');
   if (isEbitdaQuery) targetKeywords.push('ebitda', 'ebidta', '에비타', '상각전영업이익', '상각전', '영업이익');
   if (isRoeQuery) targetKeywords.push('roe', '자기자본이익률', '수익성', '이익률');
-  // 모든 쿼리에 핵심 재무지표를 항상 검색 앵커로 추가
-  targetKeywords.push(...PRIORITY_SEARCH_TERMS);
-  console.log('[GlobalAnchor] Core financial metrics always anchored');
+  // 재무/경영 관련 질문일 때만 핵심지표 앵커 추가 (사실 확인·뉴스 질문은 미적용)
+  if (isFinancialQuery) {
+    targetKeywords.push(...PRIORITY_SEARCH_TERMS);
+    console.log('[FinancialAnchor] Core financial metrics anchored for financial query');
+  }
 
   const yearKeywords = keywords.filter(k => k.match(/^\d{2,4}$/));
 
