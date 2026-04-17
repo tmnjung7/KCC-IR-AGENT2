@@ -235,10 +235,11 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
 
     const defaultHeaders = headerCandidates.length > 0 ? headerCandidates[0].headers : (file.data[0] || []);
 
-    file.data.forEach((row, rowIndex) => {
+    for (let rowIndex = 0; rowIndex < file.data.length; rowIndex++) {
+      const row = file.data[rowIndex];
       const rowStr = row.join(' ').toLowerCase();
       const cleanRowStr = rowStr.replace(/\s+/g, '');
-      
+
       let score = 0;
 
       // 1. 핵심 재무 키워드 매칭 (매우 높은 가중치)
@@ -248,7 +249,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       if (isRoeQuery && (rowStr.includes('roe') || cleanRowStr.includes('roe') || rowStr.includes('자기자본이익률'))) score += 1000;
       if (isSalesQuery && (rowStr.includes('매출') || cleanRowStr.includes('매출액') || rowStr.includes('영업이익') || cleanRowStr.includes('영업이익'))) score += 500;
       if (isDivisionQuery && (rowStr.includes('사업부') || rowStr.includes('부문') || rowStr.includes('건자재') || rowStr.includes('도료') || rowStr.includes('실리콘'))) score += 500;
-      
+
       // 2. 일반 키워드 매칭
       targetKeywords.forEach(k => {
         const lowerK = k.toLowerCase();
@@ -262,7 +263,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
 
       // 4. 파일 언급 가중치
       if (isFileMentioned) score += 200;
-      
+
       // 4-1. 사업부문 관련 질문일 때, 파일명에 '사업부'나 '부문정보'가 들어가면 압도적인 가중치 부여
       if (isDivisionQuery && (fileNameLower.includes('사업부') || fileNameLower.includes('부문정보'))) {
         score += 2000;
@@ -271,6 +272,17 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
       // 5. 헤더 행 자체는 점수 부여 (문맥 파악용)
       const isHeader = headerCandidates.some(h => h.index === rowIndex);
       if (isHeader) score += 10;
+
+      // 5-1. 핵심 재무지표 우선 가중치 (모든 쿼리에 항상 적용 — 기타포괄손익보다 항상 상위에 오도록)
+      const CORE_PRIORITY_METRICS = [
+        '부채비율', '자기자본비율', '유동비율', '당좌비율',
+        '영업이익률', '영업이익', '매출액', '매출',
+        '자기자본', '순차입금', 'roe', 'roa', 'ebitda',
+      ];
+      const hasCoreMetric = CORE_PRIORITY_METRICS.some(metric =>
+        rowStr.includes(metric) || cleanRowStr.includes(metric.replace(/\s+/g, ''))
+      );
+      if (hasCoreMetric && score > 0) score += 150;
 
       // 6. 기타포괄손익 관련 행 컨텍스트 완전 제외 (기본값)
       //    사용자가 기타포괄손익을 명시적으로 물어볼 때만 포함
@@ -300,7 +312,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
           headers: nearestHeader.headers
         });
       }
-    });
+    }
   });
 
   // 점수 순으로 정렬
