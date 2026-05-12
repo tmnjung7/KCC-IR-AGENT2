@@ -471,6 +471,7 @@ ${context}
       if (!res.headersSent) {
         res.status(500).json({ error: error.message || "AI 응답 중 오류가 발생했습니다." });
       }
+    }
   });
 
   // Vite middleware for development
