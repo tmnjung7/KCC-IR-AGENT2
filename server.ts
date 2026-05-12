@@ -99,16 +99,13 @@ async function startServer() {
   app.post("/api/chat", async (req, res) => {
     const { prompt, context, model, isEnglishMode } = req.body;
     
-    // Get key and clean it thoroughly
     let rawKey = process.env.GEMINI_API_KEY || "";
     
-    // If the default key is the placeholder "AI Studio Free Tier", use the custom API_KEY instead
     if (!rawKey || rawKey.includes("Free Tier") || rawKey.length < 20) {
       console.log(`[Auth] GEMINI_API_KEY is placeholder or missing. Trying API_KEY from Secrets...`);
       rawKey = process.env.API_KEY || "";
     }
 
-    // Remove all whitespace, quotes, and hidden characters
     let API_KEY = rawKey.trim().replace(/["'\s\t\n\r]/g, ""); 
 
     if (!API_KEY || API_KEY === "undefined" || API_KEY.length < 20) {
@@ -119,7 +116,6 @@ async function startServer() {
     }
 
     try {
-      // Log key info for debugging (masked)
       console.log(`[API Call] Using key starting with: ${API_KEY.substring(0, 4)}... and ending with: ...${API_KEY.substring(API_KEY.length - 4)}`);
       
       const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -354,24 +350,17 @@ ${context}
       }
 
       let response;
-      let usedModel = model === 'flash' ? "gemini-3-flash-preview" : "gemini-3.1-pro-preview";
+      let usedModel = model === 'flash' ? "gemini-3.1-flash-lite" : "gemini-3.1-pro-preview";
 
-      // Smart Grounding: 질문 유형에 따라 웹 검색 필요 여부 자동 결정
-      // 내부 데이터로 충분한 질문은 Search OFF → 응답 속도 대폭 단축
       const needsWebSearch = (userPrompt: string): boolean => {
         const lower = userPrompt.toLowerCase();
         const searchTriggers = [
-          // 미래/전망 관련
           '전망', '예상', '예측', '향후', '앞으로', '미래', '가능성', '기대',
           '2026', '2027', '2028', '2029', '2030',
-          // 시장·주가 데이터 (내부 CSV에 없는 정보)
           '주가', '코스피', '코스닥', '시가총액', '주식', '거래량', '상장',
-          // 최신 뉴스·공시
           '최신', '뉴스', '기사', '언론', '보도', '공시',
           '최근 발표', '어제', '오늘', '이번 주', '이번 달',
-          // 외부 비교·산업 동향
           '경쟁사', '동종업계', '업계 평균', '시장 동향', '산업 동향', '글로벌',
-          // 증권사·애널리스트 분석
           '증권사', '목표주가', '투자의견', '리포트', '애널리스트', '컨센서스',
         ];
         const isSearchNeeded = searchTriggers.some(kw => lower.includes(kw));
@@ -381,8 +370,6 @@ ${context}
 
       const shouldUseSearch = needsWebSearch(prompt);
 
-      // 안전장치: 내부 데이터가 부족하면 웹 검색으로 자동 전환
-      // 컨텍스트 길이가 아닌 "질문 키워드가 컨텍스트에 실제로 있는가"로 판단
       const GENERIC_FINANCIAL_TERMS = [
         '부채비율', '자기자본비율', '유동비율', '영업이익', '영업이익률',
         '매출액', '매출', '자기자본', '총자산', 'roe', 'roa', 'ebitda', '순차입금',
@@ -391,7 +378,6 @@ ${context}
         if (ctx.includes('질문과 관련된 데이터를 찾을 수 없습니다')) return true;
         const stripped = ctx.replace('### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###', '').trim();
         if (stripped.length < 200) return true;
-        // 질문 고유 키워드(일반 재무지표 제외)가 컨텍스트에 없으면 웹 검색 필요
         const queryWords = userPrompt.toLowerCase().replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
         const uniqueWords = queryWords.filter(w => !GENERIC_FINANCIAL_TERMS.some(t => w.includes(t)));
         if (uniqueWords.length > 0) {
@@ -410,13 +396,11 @@ ${context}
         console.log('[SafetyNet] 내부 데이터 부족 감지 → Google Search 자동 활성화');
       }
 
-      // SSE 스트리밍 헤더 설정
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no'); // nginx 버퍼링 비활성화
+      res.setHeader('X-Accel-Buffering', 'no');
 
-      // 클라이언트 연결 끊김 감지 → 스트리밍 즉시 중단
       let clientAborted = false;
       req.on('close', () => { clientAborted = true; });
 
@@ -426,7 +410,6 @@ ${context}
         if (typeof (res as any).flush === 'function') (res as any).flush();
       };
 
-      // 스트림 시작 (fallback 포함)
       const startStream = async (modelName: string, useSearch: boolean, depth = 0): Promise<{ stream: any; model: string }> => {
         const config: any = {
           systemInstruction: finalSystemInstruction,
@@ -451,7 +434,7 @@ ${context}
           }
           if ((msg.includes('429') || msg.includes('quota') || msg.includes('limit')) && modelName.includes('pro')) {
             console.warn('[Fallback] Pro quota → Flash');
-            usedModel = 'gemini-3-flash-preview';
+            usedModel = 'gemini-3.1-flash-lite';
             return startStream(usedModel, useSearch, depth + 1);
           }
           if (depth < 2 && !msg.includes('400') && !msg.includes('401') && !msg.includes('403')) {

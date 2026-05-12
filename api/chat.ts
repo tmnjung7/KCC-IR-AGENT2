@@ -192,7 +192,7 @@ ${context}
       finalSystemInstruction += `\n\n[Language Requirement]\nCRITICAL: You MUST answer entirely in professional business English. Do not use Korean.`;
     }
 
-    let usedModel = model === 'flash' ? "gemini-3-flash-preview" : "gemini-3.1-pro-preview";
+    let usedModel = model === 'flash' ? "gemini-3.1-flash-lite" : "gemini-3.1-pro-preview";
 
     // ── Smart Grounding ────────────────────────────────────────────────────
     const needsWebSearch = (userPrompt: string): boolean => {
@@ -209,8 +209,6 @@ ${context}
     };
 
     // ── 내부 데이터 부족 시 안전장치 ────────────────────────────────────────
-    // 컨텍스트 길이가 아닌 "질문 키워드가 컨텍스트에 실제로 있는가"로 판단
-    // (핵심지표 전역 앵커로 인해 컨텍스트가 항상 길어지는 문제 해결)
     const GENERIC_FINANCIAL_TERMS = [
       '부채비율', '자기자본비율', '유동비율', '영업이익', '영업이익률',
       '매출액', '매출', '자기자본', '총자산', 'roe', 'roa', 'ebitda', '순차입금',
@@ -219,7 +217,6 @@ ${context}
       if (ctx.includes('질문과 관련된 데이터를 찾을 수 없습니다')) return true;
       const stripped = ctx.replace('### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###', '').trim();
       if (stripped.length < 200) return true;
-      // 질문 고유 키워드(일반 재무지표 제외)가 컨텍스트에 없으면 웹 검색 필요
       const queryWords = userPrompt.toLowerCase().replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
       const uniqueWords = queryWords.filter(w => !GENERIC_FINANCIAL_TERMS.some(t => w.includes(t)));
       if (uniqueWords.length > 0) {
@@ -241,7 +238,6 @@ ${context}
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    // 클라이언트 연결 끊김 감지 → 스트리밍 즉시 중단
     let clientAborted = false;
     req.on('close', () => { clientAborted = true; });
 
@@ -273,7 +269,7 @@ ${context}
           return startStream(modelName, false, depth + 1);
         }
         if ((msg.includes('429') || msg.includes('quota') || msg.includes('limit')) && modelName.includes('pro')) {
-          usedModel = 'gemini-3-flash-preview';
+          usedModel = 'gemini-3.1-flash-lite';
           return startStream(usedModel, useSearch, depth + 1);
         }
         if (depth < 2 && !msg.includes('400') && !msg.includes('401') && !msg.includes('403')) {
