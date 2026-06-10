@@ -22,10 +22,27 @@ export default async function handler(req: any, res: any) {
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-    // ── 시스템 프롬프트 (server.ts와 동일하게 유지) ────────────────────────
     const systemInstruction = `
 당신은 KCC(주)의 공식 IR AI 어시스턴트입니다.
 KCC의 재무 데이터, 사업 전략, 투자 정보에 대해 전문적이고 신뢰할 수 있는 답변을 제공합니다.
+
+---
+
+## 🏭 KCC 주요 사업장 고정 팩트 (반드시 이 내용을 우선 사용할 것)
+
+아래 정보는 KCC 내부 확인 데이터입니다. 공장·사업장 관련 질문 시 이 내용을 기준으로 답변하며, 웹 검색 결과가 이와 다를 경우 아래 내용을 우선합니다.
+
+| 공장 | 사업부문 | 주요 생산품목 | 비고 |
+|------|---------|-------------|------|
+| 울산공장 | 도료부문 | 자동차 도료, 선박 도료 (페인트) | 정상 가동 |
+| 전주1공장 | 건자재부문 | PVC창호 | 정상 가동 |
+| 전주2공장 | 도료부문 | 건축용 도료 (페인트) | 정상 가동 |
+| 대죽공장 (서산) | 건자재부문 | 석고보드 | 정상 가동 |
+| 문막공장 | 건자재부문 | 단열재 | 정상 가동 |
+| 김천공장 | 건자재부문 | 단열재 | 정상 가동 |
+| 세종공장 | 기타소재부문 | 장섬유 | **가동 중단 결정** |
+
+> ⚠️ 세종공장은 단열재가 아닌 **장섬유** 생산 시설이며, **기타소재부문** 소속입니다. 가동 중단이 결정된 상태입니다.
 
 ---
 
@@ -89,6 +106,8 @@ KCC에 관한 **모든 질문**에서 아래 지표를 우선적으로 활용한
 **[1순위] 내부 데이터 최우선**
 - 아래 [데이터 컨텍스트]를 가장 먼저 확인하고, 관련 수치는 반드시 해당 데이터를 인용하세요.
 - 수치를 제시할 때는 출처 파일명(예: "연결손익계산서 기준")을 자연스럽게 언급하세요.
+- **⚠️ 내부 데이터에 해당 연도의 실제(확정) 수치가 존재하는 경우, 외부 검색으로 가져온 추정치(E)나 증권사 예상치를 그 연도 수치로 사용하지 않는다.**
+  - 내부 데이터 수치를 먼저 표에 제시하고, 외부 추정치가 필요한 경우 별도 행 또는 각주로 구분 표기한다.
 
 **[2순위] 외부 검색 및 AI 추론 적극 활용**
 - 미래 전망, 산업 동향, 경쟁사 비교 등 내부 데이터만으로 불충분한 경우 Google Search를 활용하세요.
@@ -142,7 +161,27 @@ KCC에 관한 **모든 질문**에서 아래 지표를 우선적으로 활용한
 
 ---
 
-## 7. 데이터 컨텍스트
+## 7. 사실 정확성 및 불확실성 표현 원칙 (반드시 준수)
+
+KCC 특정 사업장·공장 운영 현황, 생산 품목, 설비 투자, 가동 중단 등
+**내부 데이터나 웹 검색 결과에서 명확히 확인되지 않은 세부 사실**은
+단정하지 않되, 자연스럽고 전문적인 표현으로 불확실성을 녹여낸다.
+
+**적용 규칙**
+
+1. **확인된 사실은 자신감 있게, 불확실한 세부 사항은 부드럽게 헤징한다.**
+   - 좋은 예: "가동 중단 결정이 보도된 바 있으며, 해당 공장의 정확한 생산 품목은 KCC 측 확인이 필요합니다."
+   - 좋은 예: "~으로 알려져 있으나, 공식 공시 기준으로는 추가 확인이 필요합니다."
+   - 나쁜 예: 출처 없이 제품명·수치·운영 세부사항을 단정적으로 서술
+2. **생산 품목·제품명 등 구체적 팩트는 출처가 없으면 단정하지 않는다.**
+   - 단, "~을 생산하는 사업부로 알려져 있습니다" 수준의 자연스러운 표현은 허용된다.
+3. **웹 검색 결과에서도 불명확한 경우**, 검색 결과에서 확인된 내용을 먼저 전달하고
+   세부 사항에 대해서는 "정확한 내용은 공식 공시 또는 IR 자료 참고를 권장드립니다"로 마무리한다.
+4. **전체 답변의 흐름은 유지**하되, 불확실한 부분만 헤징 표현으로 자연스럽게 처리한다.
+
+---
+
+## 8. 데이터 컨텍스트
 
 ${context}
     `;
@@ -152,15 +191,14 @@ ${context}
       finalSystemInstruction += `\n\n[Language Requirement]\nCRITICAL: You MUST answer entirely in professional business English. Do not use Korean.`;
     }
 
-    let usedModel = model === 'flash' ? "gemini-3-flash-preview" : "gemini-3.1-pro-preview";
+    let usedModel = model === 'flash' ? "gemini-2.5-flash" : "gemini-2.5-pro";
 
-    // ── Smart Grounding ────────────────────────────────────────────────────
     const needsWebSearch = (userPrompt: string): boolean => {
       const lower = userPrompt.toLowerCase();
       const triggers = [
         '전망', '예상', '예측', '향후', '앞으로', '미래', '가능성',
         '2026', '2027', '2028', '2029', '2030',
-        '주가', '시가총액', '주식', '거래량',
+        '주가', '코스피', '코스닥', '시가총액', '주식', '거래량',
         '최신', '뉴스', '기사', '언론', '보도', '공시',
         '경쟁사', '동종업계', '업계 평균', '시장 동향', '산업 동향',
         '증권사', '목표주가', '투자의견', '리포트', '애널리스트', '컨센서스',
@@ -168,22 +206,39 @@ ${context}
       return triggers.some(kw => lower.includes(kw));
     };
 
-    // ── 내부 데이터 부족 시 안전장치 ────────────────────────────────────────
-    const isContextInsufficient = (ctx: string): boolean => {
+    const GENERIC_FINANCIAL_TERMS = [
+      '부채비율', '자기자본비율', '유동비율', '영업이익', '영업이익률',
+      '매출액', '매출', '자기자본', '총자산', 'roe', 'roa', 'ebitda', '순차입금',
+    ];
+    const isContextInsufficient = (ctx: string, userPrompt: string): boolean => {
       if (ctx.includes('질문과 관련된 데이터를 찾을 수 없습니다')) return true;
       const stripped = ctx.replace('### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###', '').trim();
-      return stripped.length < 200;
+      if (stripped.length < 200) return true;
+      const queryWords = userPrompt.toLowerCase().replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+      const uniqueWords = queryWords.filter(w => !GENERIC_FINANCIAL_TERMS.some(t => w.includes(t)));
+      if (uniqueWords.length > 0) {
+        const ctxLower = stripped.toLowerCase();
+        const hasRelevantContent = uniqueWords.some(w => ctxLower.includes(w));
+        if (!hasRelevantContent) {
+          console.log('[SafetyNet] 컨텍스트에 질문 키워드 없음 → Google Search 활성화:', uniqueWords.slice(0, 5));
+          return true;
+        }
+      }
+      return false;
     };
 
-    const finalUseSearch = needsWebSearch(prompt) || isContextInsufficient(context);
+    const finalUseSearch = needsWebSearch(prompt) || isContextInsufficient(context, prompt);
 
-    // ── SSE 스트리밍 ────────────────────────────────────────────────────────
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    let clientAborted = false;
+    req.on('close', () => { clientAborted = true; });
+
     const sendEvent = (data: object) => {
+      if (clientAborted) return;
       res.write(`data: ${JSON.stringify(data)}\n\n`);
       if (typeof (res as any).flush === 'function') (res as any).flush();
     };
@@ -209,9 +264,13 @@ ${context}
         if (useSearch && (msg.includes('tool') || msg.includes('search') || msg.includes('400'))) {
           return startStream(modelName, false, depth + 1);
         }
-        if ((msg.includes('429') || msg.includes('quota') || msg.includes('limit')) && modelName.includes('pro')) {
-          usedModel = 'gemini-3-flash-preview';
+        const isRateLimit = msg.includes('429') || msg.includes('quota') || msg.includes('limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('exhausted');
+        if (isRateLimit && modelName.includes('pro')) {
+          usedModel = 'gemini-2.5-flash';
           return startStream(usedModel, useSearch, depth + 1);
+        }
+        if (isRateLimit && useSearch) {
+          return startStream(modelName, false, depth + 1);
         }
         if (depth < 2 && !msg.includes('400') && !msg.includes('401') && !msg.includes('403')) {
           await new Promise(r => setTimeout(r, 1000 * (depth + 1)));
@@ -227,16 +286,19 @@ ${context}
 
       let lastChunk: any = null;
       for await (const chunk of stream) {
+        if (clientAborted) break;
         if (chunk.text) sendEvent({ text: chunk.text });
         lastChunk = chunk;
       }
 
-      const groundingMetadata = lastChunk?.candidates?.[0]?.groundingMetadata;
-      sendEvent({ done: true, groundingMetadata, model: usedModel });
+      if (!clientAborted) {
+        const groundingMetadata = lastChunk?.candidates?.[0]?.groundingMetadata;
+        sendEvent({ done: true, groundingMetadata, model: usedModel });
+      }
       res.end();
     } catch (streamError: any) {
       console.error('Streaming Error:', streamError);
-      sendEvent({ error: streamError.message || 'AI 응답 중 오류가 발생했습니다.' });
+      if (!clientAborted) sendEvent({ error: streamError.message || 'AI 응답 중 오류가 발생했습니다.' });
       res.end();
     }
   } catch (error: any) {
