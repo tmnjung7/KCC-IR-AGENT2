@@ -97,7 +97,6 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [adminPassword, setAdminPassword] = useState(() => {
     try {
-      // Always default to 0815 as requested, but allow saved password if it exists
       return localStorage.getItem('kcc_admin_password') || '0815';
     } catch (e) {
       return '0815';
@@ -105,7 +104,6 @@ export default function App() {
   });
   const [faqAnswers, setFaqAnswers] = useState<FAQItem[]>(DEFAULT_FAQ_ANSWERS);
 
-  // Fetch FAQ from backend on mount
   useEffect(() => {
     fetch('/api/faq')
       .then(res => {
@@ -119,7 +117,6 @@ export default function App() {
       })
       .catch(err => {
         console.log('Using default FAQs, backend fetch failed:', err);
-        // Fallback to local storage if backend fails
         try {
           const saved = localStorage.getItem('kcc_faq_answers');
           const parsed = saved ? JSON.parse(saved) : null;
@@ -143,7 +140,7 @@ export default function App() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<'pro' | 'flash'>('pro');
+  const [selectedModel, setSelectedModel] = useState<'pro' | 'flash'>('flash');
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
@@ -152,7 +149,6 @@ export default function App() {
   const [loadingTime, setLoadingTime] = useState(0);
   const [isEnglishMode, setIsEnglishMode] = useState(false);
 
-  // Loading Timer Effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isLoading) {
@@ -166,7 +162,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isLoading]);
 
-  // Loading Messages
   const getLoadingMessage = (time: number) => {
     if (time < 3) return "내부 IR 데이터를 검색하고 있습니다...";
     if (time < 6) return "최신 외부 기사와 증권사 리포트를 분석 중입니다...";
@@ -206,7 +201,6 @@ export default function App() {
     };
   }, [isDragging]);
   
-  // Mock debt ratio data (Last 3 years)
   const debtRatioData = [
     { name: '2023년', value: 140.8 },
     { name: '2024년', value: 135.5 },
@@ -214,7 +208,7 @@ export default function App() {
   ];
   
   const scrollRef = useRef<HTMLDivElement>(null);
-  const isStreamingRef = useRef(false); // 스트리밍 중 중복 전송 방지
+  const isStreamingRef = useRef(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -222,13 +216,11 @@ export default function App() {
     }
   }, [messages]);
 
-  // 저장소 데이터 로드
   const loadRepoData = async () => {
     setIsDataLoaded(false);
-    setIsLoading(true); // 로딩 상태 표시
+    setIsLoading(true);
     setError(null);
     try {
-      // URL에서 owner/repo 추출
       let cleanPath = repoPath.trim();
       if (cleanPath.includes('github.com/')) {
         const parts = cleanPath.split('github.com/')[1].split('/');
@@ -238,8 +230,6 @@ export default function App() {
       }
       
       console.log('Loading data from repo:', cleanPath);
-      // fetchAllCSVFromRepo 내부에서 이미 Date.now()를 사용하지만, 
-      // 여기서 한 번 더 명시적으로 로딩 상태를 관리합니다.
       const results = await fetchAllCSVFromRepo(cleanPath);
       
       if (results.length > 0) {
@@ -264,10 +254,8 @@ export default function App() {
   }, [repoPath]);
 
   const handleSaveFaq = async () => {
-    // Save to local storage as fallback
     localStorage.setItem('kcc_faq_answers', JSON.stringify(faqAnswers));
     
-    // Save to backend permanently
     try {
       const res = await fetch('/api/faq', {
         method: 'POST',
@@ -302,7 +290,6 @@ export default function App() {
   };
 
   const handlePasswordSubmit = () => {
-    // 0815를 마스터 키로 항상 허용하여 잠김 방지
     if (passwordInput === '0815' || passwordInput === adminPassword) {
       setIsAdminMode(true);
       setShowPasswordPrompt(false);
@@ -324,7 +311,6 @@ export default function App() {
 
     setMessages(prev => [...prev, userMessage]);
 
-    // Pre-defined answer
     setTimeout(() => {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -346,7 +332,6 @@ export default function App() {
       timestamp: new Date(),
     };
 
-    // 빈 어시스턴트 메시지를 즉시 추가 → 스트리밍 청크로 채워짐
     const assistantId = (Date.now() + 1).toString();
     const placeholderMessage: Message = {
       id: assistantId,
@@ -372,7 +357,6 @@ export default function App() {
         isEnglishMode,
         (chunk: string) => {
           chunkCount++;
-          // 첫 청크 도착 시 로딩 인디케이터 해제 → 스트리밍 텍스트가 바로 보임
           if (chunkCount === 1) setIsLoading(false);
           setMessages(prev =>
             prev.map(msg =>
@@ -384,7 +368,6 @@ export default function App() {
         }
       );
 
-      // 스트리밍 완료 후 최종 메타데이터(grounding, model) 업데이트
       setMessages(prev =>
         prev.map(msg =>
           msg.id === assistantId
@@ -422,7 +405,6 @@ export default function App() {
       }
 
       setError(errorMessage);
-      // placeholder 메시지를 에러 메시지로 교체
       setMessages(prev =>
         prev.map(msg =>
           msg.id === assistantId
@@ -438,7 +420,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#F0F7FF] text-[#1A1A1A] font-sans overflow-hidden flex-col lg:flex-row">
-      {/* Left Sidebar (Admin Only) - Hidden on mobile for simplicity, or could be a drawer */}
       {isAdminMode && (
         <aside className="hidden lg:flex w-72 bg-[#001A4D] text-white flex-col border-r border-white/10 shrink-0">
           <div className="p-6 border-b border-white/5">
@@ -563,9 +544,7 @@ export default function App() {
         </aside>
       )}
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-white/50 backdrop-blur-xl lg:m-2 lg:rounded-2xl shadow-2xl border-x lg:border border-white/20 overflow-hidden">
-        {/* Header */}
         <header className="h-14 lg:h-16 border-b border-black/5 bg-white/80 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-3 lg:gap-4">
             <div className="flex items-center justify-center">
@@ -579,7 +558,6 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-2 lg:gap-4">
-            {/* KCC IR Support Status (Desktop) */}
             <div className="hidden xl:flex items-center gap-3 bg-kcc-navy/5 px-4 py-1.5 rounded-full border border-kcc-navy/10 mr-2">
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
@@ -589,7 +567,6 @@ export default function App() {
               <span className="text-[10px] font-medium text-zinc-600">실시간 분석 중</span>
             </div>
 
-            {/* Mobile Tab Switcher */}
             <div className="flex lg:hidden bg-zinc-100 p-1 rounded-xl mr-2">
               <button 
                 onClick={() => setActiveTab('chat')}
@@ -650,7 +627,6 @@ export default function App() {
         </header>
 
         <div className="flex-1 flex min-h-0 relative">
-          {/* Chat Area */}
           <div className={cn(
             "flex-1 flex flex-col min-w-0 border-r border-black/5 transition-all duration-300",
             activeTab !== 'chat' && "hidden lg:flex"
@@ -739,7 +715,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Input Area */}
             <div className="p-2 lg:p-4 pt-0">
               <div className="max-w-4xl mx-auto relative group">
                 <input
@@ -771,11 +746,10 @@ export default function App() {
               </div>
             </div>
             <p className="text-center text-[8px] lg:text-[10px] text-zinc-400 mb-2 lg:mb-3 font-medium uppercase tracking-widest px-4">
-              Fact-based IR Assistant powered by KCC AI Data & Gemini 3.1 Pro
+              Fact-based IR Assistant powered by KCC AI Data & Gemini 3.1 Flash
             </p>
           </div>
 
-          {/* Resizer */}
           <div 
             className="hidden lg:flex w-1.5 hover:w-2 bg-transparent hover:bg-kcc-sky/50 cursor-col-resize transition-all z-10 shrink-0 items-center justify-center group"
             onMouseDown={() => setIsDragging(true)}
@@ -783,7 +757,6 @@ export default function App() {
             <div className="h-8 w-0.5 bg-black/10 group-hover:bg-white rounded-full" />
           </div>
 
-          {/* Right Dashboard & FAQ Sidebar */}
           <aside 
             className={cn(
               "w-full bg-white/30 p-4 lg:p-5 flex flex-col shrink-0 overflow-y-auto border-l border-black/5 scrollbar-hide transition-all duration-300",
@@ -791,7 +764,6 @@ export default function App() {
             )}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
           >
-            {/* Recent Performance Section */}
             <section className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest flex items-center gap-1.5">
@@ -819,7 +791,6 @@ export default function App() {
               </div>
             </section>
 
-            {/* FAQ Section */}
             <section className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <TrendingUp size={12} className="text-kcc-sky" /> 자주 하는 질문
@@ -846,7 +817,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Password Prompt Modal */}
       <AnimatePresence>
         {showPasswordPrompt && (
           <motion.div 
