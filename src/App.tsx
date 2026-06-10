@@ -412,7 +412,7 @@ export default function App() {
       } catch { /* ignore */ }
 
       if (parsedError.includes('429') || parsedError.includes('quota')) {
-        errorMessage = "현재 AI 요청량이 많아 일시적으로 제한되었습니다. 약 1분 후 다시 시도해 주세요. (무료 티어 할당량 제한)";
+        errorMessage = "현재 AI 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요. (API 한도 초과)";
       } else if (parsedError.includes('413')) {
         errorMessage = "데이터가 너무 방대합니다. 질문을 더 구체적으로(특정 연도나 항목 지정) 해주세요.";
       } else if (parsedError.includes('404')) {
