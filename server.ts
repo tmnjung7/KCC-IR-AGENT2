@@ -350,7 +350,7 @@ ${context}
       }
 
       let response;
-      let usedModel = model === 'flash' ? "gemini-3.1-flash-lite" : "gemini-3.1-pro-preview";
+      let usedModel = model === 'flash' ? "gemini-2.5-flash" : "gemini-2.5-pro";
 
       const needsWebSearch = (userPrompt: string): boolean => {
         const lower = userPrompt.toLowerCase();
@@ -432,10 +432,15 @@ ${context}
             console.warn(`[Search Error] Retrying without search on ${modelName}...`);
             return startStream(modelName, false, depth + 1);
           }
-          if ((msg.includes('429') || msg.includes('quota') || msg.includes('limit')) && modelName.includes('pro')) {
+          const isRateLimit = msg.includes('429') || msg.includes('quota') || msg.includes('limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('exhausted');
+          if (isRateLimit && modelName.includes('pro')) {
             console.warn('[Fallback] Pro quota → Flash');
-            usedModel = 'gemini-3.1-flash-lite';
+            usedModel = 'gemini-2.5-flash';
             return startStream(usedModel, useSearch, depth + 1);
+          }
+          if (isRateLimit && useSearch) {
+            console.warn('[Fallback] Rate limit with search → retrying without search');
+            return startStream(modelName, false, depth + 1);
           }
           if (depth < 2 && !msg.includes('400') && !msg.includes('401') && !msg.includes('403')) {
             await new Promise(r => setTimeout(r, 1000 * (depth + 1)));

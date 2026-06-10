@@ -746,7 +746,7 @@ export default function App() {
               </div>
             </div>
             <p className="text-center text-[8px] lg:text-[10px] text-zinc-400 mb-2 lg:mb-3 font-medium uppercase tracking-widest px-4">
-              Fact-based IR Assistant powered by KCC AI Data & Gemini 3.1 Flash
+              Fact-based IR Assistant powered by KCC AI Data & Gemini 2.5 Flash
             </p>
           </div>
 

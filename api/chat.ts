@@ -191,7 +191,7 @@ ${context}
       finalSystemInstruction += `\n\n[Language Requirement]\nCRITICAL: You MUST answer entirely in professional business English. Do not use Korean.`;
     }
 
-    let usedModel = model === 'flash' ? "gemini-2.5-flash-preview-05-20" : "gemini-2.5-pro-preview-06-05";
+    let usedModel = model === 'flash' ? "gemini-2.5-flash" : "gemini-2.5-pro";
 
     const needsWebSearch = (userPrompt: string): boolean => {
       const lower = userPrompt.toLowerCase();
@@ -266,7 +266,7 @@ ${context}
         }
         const isRateLimit = msg.includes('429') || msg.includes('quota') || msg.includes('limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('exhausted');
         if (isRateLimit && modelName.includes('pro')) {
-          usedModel = 'gemini-2.5-flash-preview-05-20';
+          usedModel = 'gemini-2.5-flash';
           return startStream(usedModel, useSearch, depth + 1);
         }
         if (isRateLimit && useSearch) {
