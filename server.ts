@@ -350,7 +350,7 @@ ${context}
       }
 
       let response;
-      let usedModel = model === 'flash' ? "gemini-2.5-flash" : "gemini-2.5-pro";
+      let usedModel = model === 'lite' ? "gemini-2.0-flash-lite" : model === 'pro' ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
       const needsWebSearch = (userPrompt: string): boolean => {
         const lower = userPrompt.toLowerCase();
@@ -433,9 +433,14 @@ ${context}
             return startStream(modelName, false, depth + 1);
           }
           const isRateLimit = msg.includes('429') || msg.includes('quota') || msg.includes('limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('exhausted');
-          if (isRateLimit && modelName.includes('pro')) {
-            console.warn('[Fallback] Pro quota → Flash');
+          if (isRateLimit && modelName === 'gemini-2.5-pro') {
+            console.warn('[Fallback] Pro → Flash');
             usedModel = 'gemini-2.5-flash';
+            return startStream(usedModel, useSearch, depth + 1);
+          }
+          if (isRateLimit && modelName === 'gemini-2.5-flash') {
+            console.warn('[Fallback] Flash → Lite');
+            usedModel = 'gemini-2.0-flash-lite';
             return startStream(usedModel, useSearch, depth + 1);
           }
           if (isRateLimit && useSearch) {

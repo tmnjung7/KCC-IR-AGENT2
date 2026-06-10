@@ -140,7 +140,7 @@ export default function App() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<'pro' | 'flash'>('pro');
+  const [selectedModel, setSelectedModel] = useState<'lite' | 'flash' | 'pro'>('flash');
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
@@ -590,15 +590,26 @@ export default function App() {
 
             <div className="flex items-center bg-zinc-100/80 p-1 rounded-full border border-black/5 mr-1 lg:mr-2 shadow-inner">
               <button
-                onClick={() => setSelectedModel('flash')}
+                onClick={() => setSelectedModel('lite')}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
-                  selectedModel === 'flash'
+                  selectedModel === 'lite'
                     ? "bg-green-500 text-white shadow-sm"
                     : "text-zinc-400 hover:text-zinc-600"
                 )}
               >
                 LITE
+              </button>
+              <button
+                onClick={() => setSelectedModel('flash')}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
+                  selectedModel === 'flash'
+                    ? "bg-kcc-sky text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-600"
+                )}
+              >
+                FLASH
               </button>
               <button
                 onClick={() => setSelectedModel('pro')}
@@ -771,7 +782,7 @@ export default function App() {
               </div>
             </div>
             <p className="text-center text-[8px] lg:text-[10px] text-zinc-400 mb-2 lg:mb-3 font-medium uppercase tracking-widest px-4">
-              Fact-based IR Assistant powered by KCC AI Data & {selectedModel === 'pro' ? 'Gemini 2.5 Pro' : 'Gemini 2.5 Flash'}
+              Fact-based IR Assistant powered by KCC AI Data & {selectedModel === 'pro' ? 'Gemini 2.5 Pro' : selectedModel === 'lite' ? 'Gemini 2.0 Flash Lite' : 'Gemini 2.5 Flash'}
             </p>
           </div>
 
