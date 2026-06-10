@@ -268,7 +268,8 @@ ${context}
         if (useSearch && (msg.includes('tool') || msg.includes('search') || msg.includes('400'))) {
           return startStream(modelName, false, depth + 1);
         }
-        if ((msg.includes('429') || msg.includes('quota') || msg.includes('limit')) && modelName.includes('pro')) {
+        const isRateLimit = msg.includes('429') || msg.includes('quota') || msg.includes('limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('exhausted');
+        if (isRateLimit && modelName.includes('pro')) {
           usedModel = 'gemini-3.1-flash-lite';
           return startStream(usedModel, useSearch, depth + 1);
         }
