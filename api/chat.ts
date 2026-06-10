@@ -22,7 +22,6 @@ export default async function handler(req: any, res: any) {
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-    // ── 시스템 프롬프트 (server.ts와 동일하게 유지) ────────────────────────
     const systemInstruction = `
 당신은 KCC(주)의 공식 IR AI 어시스턴트입니다.
 KCC의 재무 데이터, 사업 전략, 투자 정보에 대해 전문적이고 신뢰할 수 있는 답변을 제공합니다.
@@ -192,9 +191,8 @@ ${context}
       finalSystemInstruction += `\n\n[Language Requirement]\nCRITICAL: You MUST answer entirely in professional business English. Do not use Korean.`;
     }
 
-    let usedModel = model === 'flash' ? "gemini-3.1-flash-lite" : "gemini-3.1-pro-preview";
+    let usedModel = model === 'flash' ? "gemini-2.5-flash-preview-05-20" : "gemini-2.5-pro-preview-06-05";
 
-    // ── Smart Grounding ────────────────────────────────────────────────────
     const needsWebSearch = (userPrompt: string): boolean => {
       const lower = userPrompt.toLowerCase();
       const triggers = [
@@ -208,7 +206,6 @@ ${context}
       return triggers.some(kw => lower.includes(kw));
     };
 
-    // ── 내부 데이터 부족 시 안전장치 ────────────────────────────────────────
     const GENERIC_FINANCIAL_TERMS = [
       '부채비율', '자기자본비율', '유동비율', '영업이익', '영업이익률',
       '매출액', '매출', '자기자본', '총자산', 'roe', 'roa', 'ebitda', '순차입금',
@@ -232,7 +229,6 @@ ${context}
 
     const finalUseSearch = needsWebSearch(prompt) || isContextInsufficient(context, prompt);
 
-    // ── SSE 스트리밍 ────────────────────────────────────────────────────────
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -270,8 +266,11 @@ ${context}
         }
         const isRateLimit = msg.includes('429') || msg.includes('quota') || msg.includes('limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('exhausted');
         if (isRateLimit && modelName.includes('pro')) {
-          usedModel = 'gemini-3.1-flash-lite';
+          usedModel = 'gemini-2.5-flash-preview-05-20';
           return startStream(usedModel, useSearch, depth + 1);
+        }
+        if (isRateLimit && useSearch) {
+          return startStream(modelName, false, depth + 1);
         }
         if (depth < 2 && !msg.includes('400') && !msg.includes('401') && !msg.includes('403')) {
           await new Promise(r => setTimeout(r, 1000 * (depth + 1)));
