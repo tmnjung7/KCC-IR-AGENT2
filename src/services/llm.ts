@@ -1,7 +1,28 @@
-export const getGeminiResponse = async (
+export type Provider = 'gemini' | 'claude';
+export type ModelTier = 'lite' | 'flash' | 'pro';
+
+export interface ProviderAvailability {
+  gemini: boolean;
+  claude: boolean;
+  dart: boolean;
+}
+
+export const fetchProviderAvailability = async (): Promise<ProviderAvailability> => {
+  try {
+    const res = await fetch('/api/providers');
+    if (!res.ok) throw new Error('unavailable');
+    return await res.json();
+  } catch {
+    // 확인 불가 시 기존 동작(Gemini)만 노출
+    return { gemini: true, claude: false, dart: false };
+  }
+};
+
+export const getAIResponse = async (
   prompt: string,
   context: string,
-  model: 'pro' | 'flash' = 'pro',
+  provider: Provider = 'gemini',
+  model: ModelTier = 'flash',
   isEnglishMode: boolean = false,
   onChunk?: (text: string) => void
 ) => {
@@ -12,7 +33,7 @@ export const getGeminiResponse = async (
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, context, model, isEnglishMode }),
+        body: JSON.stringify({ prompt, context, provider, model, isEnglishMode }),
       });
 
       if (!response.ok) {
@@ -23,7 +44,6 @@ export const getGeminiResponse = async (
         } catch {
           errorMessage = `서버 오류 (${response.status}): ${response.statusText}`;
         }
-        if (response.status === 429) throw new Error(errorMessage);
         throw new Error(errorMessage);
       }
 
@@ -72,11 +92,18 @@ export const getGeminiResponse = async (
       return data;
 
     } catch (error: any) {
-      console.error(`Gemini API Error (attempt ${attempt}/${MAX_RETRIES}):`, error);
+      console.error(`LLM API Error (attempt ${attempt}/${MAX_RETRIES}):`, error);
       if (error.message?.includes('429') || error.message?.includes('quota')) throw error;
       if (attempt === MAX_RETRIES) throw error;
-      console.warn(`[Retry] ${attempt}/${MAX_RETRIES - 1} 재시도 중... 1.5초 대기`);
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
   }
+};
+
+/** 화면 표시용 모델명 */
+export const modelDisplayName = (provider: Provider, tier: ModelTier): string => {
+  if (provider === 'claude') {
+    return tier === 'pro' ? 'Claude Opus 5' : tier === 'lite' ? 'Claude Haiku 4.5' : 'Claude Sonnet 5';
+  }
+  return tier === 'pro' ? 'Gemini 2.5 Pro' : tier === 'lite' ? 'Gemini 2.0 Flash Lite' : 'Gemini 2.5 Flash';
 };
