@@ -9,6 +9,39 @@ export interface IRData {
   source: string;
 }
 
+export interface DartSummary {
+  corpName: string;
+  latestYear: string;
+  revenue: number | null;
+  operatingProfit: number | null;
+  totalAssets: number | null;
+  yoy: { revenue: number | null; operatingProfit: number | null; totalAssets: number | null };
+  debtRatioTrend: { year: string; value: number }[];
+  dividendPerShare: { year: string; value: number }[];
+  lastSync: string;
+}
+
+export interface DartDataset {
+  files: { name: string; data: string[][] }[];
+  summary: DartSummary;
+}
+
+// DART 전자공시 데이터 자동 수집 (서버가 6시간 캐시)
+export const fetchDartData = async (): Promise<DartDataset> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  try {
+    const response = await fetch('/api/dart-data', { signal: controller.signal });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `DART 데이터 로드 실패 (${response.status})`);
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 export const fetchCSVData = async (url: string): Promise<any[]> => {
   try {
     const controller = new AbortController();
@@ -354,7 +387,7 @@ export const searchContext = (allFileData: {name: string, data: any[]}[], query:
 
   let context = "### IR 데이터 분석 결과 (관련성 높은 데이터 우선) ###\n\n";
   let totalLength = 0;
-  const MAX_CONTEXT_LENGTH = 100000; // 250,000 → 100,000: 점수 기반 상위 행만 추려내므로 품질 동일, 처리 속도 개선
+  const MAX_CONTEXT_LENGTH = 40000; // 100,000 → 40,000: 점수 기반 상위 행만 전송 → LLM 토큰 비용 절감
   const seenRows = new Set<string>();
 
   // 상위 점수 행들부터 컨텍스트에 추가

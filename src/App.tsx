@@ -1,35 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  Send, 
-  Database, 
-  FileText, 
-  AlertCircle, 
-  Loader2, 
-  BarChart3, 
-  TrendingUp, 
+import {
+  Search,
+  Database,
+  FileText,
+  AlertCircle,
+  Loader2,
+  BarChart3,
+  TrendingUp,
   Settings,
   Github,
-  ArrowUpRight,
-  PieChart,
   Activity,
   ChevronRight,
-  Globe
+  Globe,
+  RefreshCw,
+  Landmark,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip 
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip
 } from 'recharts';
-import { fetchCSVData, formatContext, fetchAllCSVFromRepo, searchContext, IRData } from './services/dataService';
-import { getGeminiResponse } from './services/gemini';
+import { fetchAllCSVFromRepo, searchContext, fetchDartData, DartSummary, IRData } from './services/dataService';
+import { getAIResponse, fetchProviderAvailability, modelDisplayName, Provider, ModelTier, ProviderAvailability } from './services/llm';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -90,6 +90,25 @@ const DEFAULT_FAQ_ANSWERS: FAQItem[] = [
   }
 ];
 
+// 백만원 단위 → 조/억 표기
+const formatKrw = (millions: number | null): string => {
+  if (millions === null) return '-';
+  const abs = Math.abs(millions);
+  if (abs >= 1_000_000) return `${(millions / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}조`;
+  if (abs >= 100) return `${Math.round(millions / 100).toLocaleString()}억`;
+  return `${millions.toLocaleString()}백만`;
+};
+
+const YoyBadge = ({ value }: { value: number | null }) => {
+  if (value === null) return <span className="text-[9px] text-zinc-400 font-bold">-</span>;
+  const up = value >= 0;
+  return (
+    <span className={cn("text-[9px] font-bold", up ? "text-red-500" : "text-blue-500")}>
+      {up ? '▲' : '▼'} {Math.abs(value)}% YoY
+    </span>
+  );
+};
+
 export default function App() {
   const [input, setInput] = useState('');
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -135,12 +154,21 @@ export default function App() {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const [repoPath, setRepoPath] = useState('tmnjung7/KCC-IR-AGENT2'); 
-  const [allFileData, setAllFileData] = useState<{name: string, data: IRData[]}[]>([]);
+  const [repoPath, setRepoPath] = useState('tmnjung7/KCC-IR-AGENT2');
+  const [allFileData, setAllFileData] = useState<{name: string, data: any[]}[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<'lite' | 'flash' | 'pro'>('flash');
+  const [selectedModel, setSelectedModel] = useState<ModelTier>('flash');
+  const [provider, setProvider] = useState<Provider>(() => {
+    try {
+      const saved = localStorage.getItem('kcc_llm_provider');
+      return saved === 'claude' ? 'claude' : 'gemini';
+    } catch { return 'gemini'; }
+  });
+  const [providerAvail, setProviderAvail] = useState<ProviderAvailability>({ gemini: true, claude: false, dart: false });
+  const [dartSummary, setDartSummary] = useState<DartSummary | null>(null);
+  const [dartStatus, setDartStatus] = useState<'loading' | 'ok' | 'off'>('loading');
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
@@ -148,6 +176,18 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
   const [isEnglishMode, setIsEnglishMode] = useState(false);
+
+  useEffect(() => {
+    try { localStorage.setItem('kcc_llm_provider', provider); } catch {}
+  }, [provider]);
+
+  useEffect(() => {
+    fetchProviderAvailability().then(avail => {
+      setProviderAvail(avail);
+      // Claude 키가 없으면 Gemini로 강제
+      if (!avail.claude) setProvider('gemini');
+    });
+  }, []);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -163,7 +203,7 @@ export default function App() {
   }, [isLoading]);
 
   const getLoadingMessage = (time: number) => {
-    if (time < 3) return "내부 IR 데이터를 검색하고 있습니다...";
+    if (time < 3) return "DART 공시 및 내부 IR 데이터를 검색하고 있습니다...";
     if (time < 6) return "최신 외부 기사와 증권사 리포트를 분석 중입니다...";
     if (time < 9) return "데이터를 종합하여 답변을 생성하고 있습니다...";
     return "심층 분석 중입니다. 잠시만 기다려 주세요...";
@@ -200,13 +240,7 @@ export default function App() {
       document.body.style.cursor = '';
     };
   }, [isDragging]);
-  
-  const debtRatioData = [
-    { name: '2023년', value: 140.8 },
-    { name: '2024년', value: 135.5 },
-    { name: '2025년', value: 128.2 },
-  ];
-  
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const isStreamingRef = useRef(false);
 
@@ -216,53 +250,69 @@ export default function App() {
     }
   }, [messages]);
 
-  const loadRepoData = async () => {
+  // DART 자동 수집 + GitHub CSV(보조 지식베이스)를 병렬 로드해 병합
+  const loadAllData = async () => {
     setIsDataLoaded(false);
     setIsLoading(true);
     setError(null);
-    try {
-      let cleanPath = repoPath.trim();
-      if (cleanPath.includes('github.com/')) {
-        const parts = cleanPath.split('github.com/')[1].split('/');
-        if (parts.length >= 2) {
-          cleanPath = `${parts[0]}/${parts[1]}`;
-        }
+    setDartStatus('loading');
+
+    let cleanPath = repoPath.trim();
+    if (cleanPath.includes('github.com/')) {
+      const parts = cleanPath.split('github.com/')[1].split('/');
+      if (parts.length >= 2) {
+        cleanPath = `${parts[0]}/${parts[1]}`;
       }
-      
-      console.log('Loading data from repo:', cleanPath);
-      const results = await fetchAllCSVFromRepo(cleanPath);
-      
-      if (results.length > 0) {
-        setAllFileData(results);
-        setIsDataLoaded(true);
-        const now = new Date();
-        setLastUpdated(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        console.log('Data loaded successfully:', results.length, 'files at', now.toISOString());
-      } else {
-        setError('CSV 파일을 찾을 수 없습니다. 저장소에 .csv 파일이 있는지 확인해 주세요.');
-      }
-    } catch (err: any) {
-      console.error('Data load error:', err);
-      setError(`데이터 로드 실패: ${err.message || '알 수 없는 오류'}`);
-    } finally {
-      setIsLoading(false);
     }
+
+    const [dartResult, csvResult] = await Promise.allSettled([
+      fetchDartData(),
+      fetchAllCSVFromRepo(cleanPath),
+    ]);
+
+    const merged: {name: string, data: any[]}[] = [];
+
+    if (dartResult.status === 'fulfilled') {
+      merged.push(...dartResult.value.files);
+      setDartSummary(dartResult.value.summary);
+      setDartStatus('ok');
+    } else {
+      console.warn('DART 데이터 로드 실패 (CSV 폴백):', dartResult.reason);
+      setDartStatus('off');
+    }
+
+    if (csvResult.status === 'fulfilled') {
+      merged.push(...csvResult.value);
+    } else {
+      console.warn('GitHub CSV 로드 실패:', csvResult.reason);
+    }
+
+    if (merged.length > 0) {
+      setAllFileData(merged);
+      setIsDataLoaded(true);
+      const now = new Date();
+      setLastUpdated(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    } else {
+      const dartMsg = dartResult.status === 'rejected' ? (dartResult.reason?.message || 'DART 연동 실패') : '';
+      setError(`데이터 로드 실패: ${dartMsg || 'DART와 GitHub 저장소 모두에서 데이터를 가져오지 못했습니다.'}`);
+    }
+    setIsLoading(false);
   };
 
   useEffect(() => {
-    loadRepoData();
+    loadAllData();
   }, [repoPath]);
 
   const handleSaveFaq = async () => {
     localStorage.setItem('kcc_faq_answers', JSON.stringify(faqAnswers));
-    
+
     try {
       const res = await fetch('/api/faq', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(faqAnswers)
       });
-      
+
       if (res.ok) {
         setShowSaveToast(true);
         setTimeout(() => setShowSaveToast(false), 3000);
@@ -350,9 +400,10 @@ export default function App() {
     try {
       const context = searchContext(allFileData, input);
 
-      const responseData = await getGeminiResponse(
+      const responseData = await getAIResponse(
         input,
         context,
+        provider,
         selectedModel,
         isEnglishMode,
         (chunk: string) => {
@@ -394,12 +445,14 @@ export default function App() {
         }
       } catch { /* ignore */ }
 
-      if (parsedError.includes('429') || parsedError.includes('quota')) {
+      if (parsedError.includes('429') || parsedError.includes('quota') || parsedError.includes('한도')) {
         errorMessage = "현재 AI 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요. (API 한도 초과)";
       } else if (parsedError.includes('413')) {
         errorMessage = "데이터가 너무 방대합니다. 질문을 더 구체적으로(특정 연도나 항목 지정) 해주세요.";
       } else if (parsedError.includes('404')) {
         errorMessage = "AI 모델을 찾을 수 없습니다. 시스템 설정을 확인 중입니다.";
+      } else if (parsedError.includes('API 키')) {
+        errorMessage = parsedError;
       } else if (parsedError.includes('500')) {
         errorMessage = "AI 서버에 일시적인 문제가 발생했습니다. 다시 시도해 주세요.";
       }
@@ -418,8 +471,10 @@ export default function App() {
     }
   };
 
+  const kpiYear = dartSummary?.latestYear || '2025';
+
   return (
-    <div className="flex h-screen bg-[#F0F7FF] text-[#1A1A1A] font-sans overflow-hidden flex-col lg:flex-row">
+    <div className="flex h-screen bg-[#EDF2F9] text-[#1A1A1A] font-sans overflow-hidden flex-col lg:flex-row">
       {isAdminMode && (
         <aside className="hidden lg:flex w-72 bg-[#001A4D] text-white flex-col border-r border-white/10 shrink-0">
           <div className="p-6 border-b border-white/5">
@@ -428,31 +483,37 @@ export default function App() {
           <nav className="flex-1 overflow-y-auto p-4 space-y-6">
             <div className="px-2 py-3">
               <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4 flex justify-between items-center">
-                <span>Loaded Files ({allFileData.length})</span>
-                <button onClick={loadRepoData} className="hover:text-kcc-sky transition-colors p-1">
-                  <TrendingUp size={12} className={cn(isLoading && "animate-spin")} />
+                <span>Loaded Sources ({allFileData.length})</span>
+                <button onClick={loadAllData} className="hover:text-kcc-sky transition-colors p-1">
+                  <RefreshCw size={12} className={cn(isLoading && "animate-spin")} />
                 </button>
               </h2>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                 {allFileData.map((file, idx) => (
                   <div key={idx} className="flex items-center gap-3 text-[11px] text-zinc-300 bg-white/5 p-2 rounded border border-white/5">
-                    <FileText size={12} className="text-kcc-sky shrink-0" />
+                    {file.name.startsWith('DART_')
+                      ? <Landmark size={12} className="text-emerald-400 shrink-0" />
+                      : <FileText size={12} className="text-kcc-sky shrink-0" />}
                     <span className="truncate">{file.name}</span>
                   </div>
                 ))}
               </div>
+              <p className="text-[9px] text-zinc-500 mt-3 leading-relaxed">
+                <Landmark size={9} className="inline mr-1 text-emerald-400" />
+                DART_ 소스는 전자공시시스템에서 자동 수집됩니다 (6시간 캐시).
+              </p>
             </div>
             <div className="px-2 py-6 border-t border-white/5 relative">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Edit FAQ Answers</h2>
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={() => setFaqAnswers(DEFAULT_FAQ_ANSWERS)}
                     className="text-[9px] text-zinc-400 hover:text-white transition-colors"
                   >
                     초기화
                   </button>
-                  <button 
+                  <button
                     onClick={handleSaveFaq}
                     className="text-[9px] bg-kcc-sky text-white px-2 py-1 rounded hover:bg-kcc-sky/80 transition-colors"
                   >
@@ -460,10 +521,10 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              
+
               <AnimatePresence>
                 {showSaveToast && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
@@ -479,7 +540,7 @@ export default function App() {
                   <div key={faq.id} className="space-y-2 p-3 bg-white/5 rounded-lg border border-white/5">
                     <div className="space-y-1">
                       <label className="text-[9px] text-zinc-500 uppercase font-bold">Question Title</label>
-                      <input 
+                      <input
                         type="text"
                         value={faq.question}
                         onChange={(e) => {
@@ -492,7 +553,7 @@ export default function App() {
                     </div>
                     <div className="space-y-1">
                       <label className="text-[9px] text-zinc-500 uppercase font-bold">Answer Content</label>
-                      <textarea 
+                      <textarea
                         value={faq.answer}
                         onChange={(e) => {
                           const newFaqs = [...faqAnswers];
@@ -512,8 +573,8 @@ export default function App() {
                 <label className="text-[11px] text-zinc-400 flex items-center gap-2">
                   Change Password (4 digits)
                 </label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   maxLength={4}
                   value={adminPassword}
                   onChange={(e) => {
@@ -526,10 +587,10 @@ export default function App() {
             </div>
             <div className="px-2 py-6 border-t border-white/5">
               <label className="text-[11px] text-zinc-400 flex items-center gap-2 mb-2">
-                <Github size={12} /> GitHub Repo
+                <Github size={12} /> GitHub Repo (보조 데이터)
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={repoPath}
                 onChange={(e) => setRepoPath(e.target.value)}
                 className="w-full bg-zinc-800/50 border border-white/10 rounded-md px-3 py-2 text-xs focus:outline-none"
@@ -544,31 +605,33 @@ export default function App() {
         </aside>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 bg-white/50 backdrop-blur-xl lg:m-2 lg:rounded-2xl shadow-2xl border-x lg:border border-white/20 overflow-hidden">
-        <header className="h-14 lg:h-16 border-b border-black/5 bg-white/80 flex items-center justify-between px-4 lg:px-6 shrink-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-white/60 backdrop-blur-xl lg:m-2 lg:rounded-2xl shadow-2xl border-x lg:border border-white/30 overflow-hidden">
+        <header className="h-14 lg:h-16 border-b border-black/5 bg-white/90 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-3 lg:gap-4">
-            <div className="flex items-center justify-center">
-              <span className="text-2xl lg:text-3xl font-black italic tracking-tighter text-kcc-navy">KCC</span>
+            <div className="flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-gradient-to-br from-kcc-navy to-[#0055D4] shadow-md shadow-kcc-navy/20">
+              <span className="text-[13px] lg:text-[15px] font-black italic tracking-tighter text-white">KCC</span>
             </div>
-            <div className="h-5 lg:h-6 w-px bg-black/10" />
             <div className="min-w-0">
-              <h1 className="text-sm lg:text-xl font-extrabold tracking-tight text-kcc-navy truncate">KCC IR AI 어시스턴트</h1>
-              <p className="hidden lg:block text-[10px] text-zinc-500 font-medium">재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.</p>
+              <h1 className="text-sm lg:text-lg font-extrabold tracking-tight text-kcc-navy truncate">KCC IR AI 어시스턴트</h1>
+              <div className="hidden lg:flex items-center gap-2">
+                <p className="text-[10px] text-zinc-500 font-medium">재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.</p>
+                {dartStatus === 'ok' && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
+                    <Landmark size={9} /> DART 자동연동
+                  </span>
+                )}
+                {dartStatus === 'off' && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-full">
+                    <AlertCircle size={9} /> 수동 데이터 모드
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-          
-          <div className="flex items-center gap-2 lg:gap-4">
-            <div className="hidden xl:flex items-center gap-3 bg-kcc-navy/5 px-4 py-1.5 rounded-full border border-kcc-navy/10 mr-2">
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-[10px] font-bold text-kcc-navy uppercase tracking-wider">KCC IR Support</span>
-              </div>
-              <div className="w-px h-3 bg-kcc-navy/20" />
-              <span className="text-[10px] font-medium text-zinc-600">실시간 분석 중</span>
-            </div>
 
-            <div className="flex lg:hidden bg-zinc-100 p-1 rounded-xl mr-2">
-              <button 
+          <div className="flex items-center gap-2 lg:gap-3">
+            <div className="flex lg:hidden bg-zinc-100 p-1 rounded-xl mr-1">
+              <button
                 onClick={() => setActiveTab('chat')}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all",
@@ -577,7 +640,7 @@ export default function App() {
               >
                 채팅
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('dashboard')}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all",
@@ -588,9 +651,34 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center bg-zinc-100/80 p-1 rounded-full border border-black/5 mr-1 lg:mr-2 shadow-inner">
+            {providerAvail.claude && (
+              <div className="hidden md:flex items-center bg-zinc-100/80 p-1 rounded-full border border-black/5 shadow-inner">
+                <button
+                  onClick={() => setProvider('gemini')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
+                    provider === 'gemini' ? "bg-white text-[#1a73e8] shadow-sm" : "text-zinc-400 hover:text-zinc-600"
+                  )}
+                >
+                  Gemini
+                </button>
+                <button
+                  onClick={() => setProvider('claude')}
+                  className={cn(
+                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
+                    provider === 'claude' ? "bg-[#CC7C5E] text-white shadow-sm" : "text-zinc-400 hover:text-zinc-600"
+                  )}
+                >
+                  <Sparkles size={11} />
+                  Claude
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center bg-zinc-100/80 p-1 rounded-full border border-black/5 shadow-inner">
               <button
                 onClick={() => setSelectedModel('lite')}
+                title={modelDisplayName(provider, 'lite')}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
                   selectedModel === 'lite'
@@ -602,6 +690,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setSelectedModel('flash')}
+                title={modelDisplayName(provider, 'flash')}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
                   selectedModel === 'flash'
@@ -613,6 +702,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setSelectedModel('pro')}
+                title={modelDisplayName(provider, 'pro')}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
                   selectedModel === 'pro'
@@ -624,13 +714,13 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center bg-zinc-100/80 p-1 rounded-full border border-black/5 mr-1 lg:mr-2 shadow-inner">
+            <div className="hidden sm:flex items-center bg-zinc-100/80 p-1 rounded-full border border-black/5 shadow-inner">
               <button
                 onClick={() => setIsEnglishMode(false)}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
-                  !isEnglishMode 
-                    ? "bg-white text-kcc-navy shadow-sm" 
+                  !isEnglishMode
+                    ? "bg-white text-kcc-navy shadow-sm"
                     : "text-zinc-400 hover:text-zinc-600"
                 )}
               >
@@ -640,8 +730,8 @@ export default function App() {
                 onClick={() => setIsEnglishMode(true)}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
-                  isEnglishMode 
-                    ? "bg-kcc-navy text-white shadow-md" 
+                  isEnglishMode
+                    ? "bg-kcc-navy text-white shadow-md"
                     : "text-zinc-400 hover:text-zinc-600"
                 )}
               >
@@ -650,7 +740,7 @@ export default function App() {
               </button>
             </div>
 
-            <button 
+            <button
               onClick={handleAdminToggle}
               className={cn(
                 "p-2 rounded-full transition-all duration-300",
@@ -667,7 +757,7 @@ export default function App() {
             "flex-1 flex flex-col min-w-0 border-r border-black/5 transition-all duration-300",
             activeTab !== 'chat' && "hidden lg:flex"
           )}>
-            <div 
+            <div
               ref={scrollRef}
               className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4 lg:space-y-5 scroll-smooth"
             >
@@ -675,8 +765,8 @@ export default function App() {
                 {messages.map((msg) => (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className={cn(
                       "flex gap-3 lg:gap-4 max-w-[90%] lg:max-w-[85%]",
                       msg.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
@@ -691,8 +781,8 @@ export default function App() {
                     <div className="space-y-1">
                       <div className={cn(
                         "px-3 py-2 lg:px-5 lg:py-3 rounded-xl lg:rounded-2xl text-[13px] lg:text-[13.5px] leading-relaxed shadow-sm",
-                        msg.role === 'user' 
-                          ? "bg-kcc-navy text-white rounded-tr-none" 
+                        msg.role === 'user'
+                          ? "bg-gradient-to-br from-kcc-navy to-[#00297A] text-white rounded-tr-none"
                           : "bg-white border border-black/5 text-[#1A1A1A] rounded-tl-none"
                       )}>
                         {msg.role === 'user' ? (
@@ -708,13 +798,13 @@ export default function App() {
                             </ReactMarkdown>
                           </div>
                         )}
-                        
+
                         {Array.isArray(msg.groundingMetadata?.groundingChunks) && (
                           <div className="mt-3 pt-2 border-t border-black/5">
                             <div className="flex flex-wrap gap-1.5">
                               {msg.groundingMetadata.groundingChunks.map((chunk: any, idx: number) => (
                                 chunk.web && (
-                                  <a 
+                                  <a
                                     key={idx}
                                     href={chunk.web.uri}
                                     target="_blank"
@@ -731,13 +821,14 @@ export default function App() {
                       </div>
                       <p className="text-[9px] lg:text-[10px] text-zinc-400 px-2">
                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {msg.model && <span className="ml-1.5 text-zinc-300">· {msg.model}</span>}
                       </p>
                     </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
               {isLoading && (
-                <div className="flex flex-col gap-2 bg-white/50 p-3 lg:p-4 rounded-xl border border-black/5 w-fit shadow-sm">
+                <div className="flex flex-col gap-2 bg-white/70 p-3 lg:p-4 rounded-xl border border-black/5 w-fit shadow-sm">
                   <div className="flex items-center gap-3 text-zinc-600 text-xs lg:text-sm">
                     <Loader2 size={16} className="animate-spin text-kcc-sky" />
                     <span className="font-bold">{getLoadingMessage(loadingTime)}</span>
@@ -759,18 +850,18 @@ export default function App() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   placeholder={isEnglishMode ? "Ask questions about KCC's financials or business..." : "질문을 입력하세요..."}
-                  className="w-full bg-white border border-black/10 rounded-full pl-5 lg:pl-6 pr-12 lg:pr-14 py-2 lg:py-2.5 text-sm lg:text-sm shadow-md focus:outline-none focus:border-kcc-sky transition-all"
+                  className="w-full bg-white border border-black/10 rounded-full pl-5 lg:pl-6 pr-12 lg:pr-14 py-2.5 lg:py-3 text-sm shadow-md focus:outline-none focus:border-kcc-sky focus:ring-2 focus:ring-kcc-sky/20 transition-all"
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isLoading}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 lg:w-8 lg:h-8 bg-kcc-navy text-white rounded-full flex items-center justify-center hover:bg-kcc-navy/90 disabled:opacity-50 transition-all"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 lg:w-9 lg:h-9 bg-gradient-to-br from-kcc-navy to-[#0055D4] text-white rounded-full flex items-center justify-center hover:opacity-90 disabled:opacity-50 transition-all shadow-md shadow-kcc-navy/20"
                 >
                   <Search size={14} className="lg:w-4 lg:h-4" />
                 </button>
               </div>
               <div className="max-w-4xl mx-auto mt-3 flex flex-wrap gap-2 justify-center">
-                {["배당금", "실적 발표 자료", "기업가치제고계획", "IR 페이지", "주요지표", "KCC 챗봇"].map((q) => (
+                {["배당금", "실적 발표 자료", "기업가치제고계획", "IR 페이지", "주요지표", "최근 공시"].map((q) => (
                   <button
                     key={q}
                     onClick={() => setInput(q)}
@@ -782,20 +873,20 @@ export default function App() {
               </div>
             </div>
             <p className="text-center text-[8px] lg:text-[10px] text-zinc-400 mb-2 lg:mb-3 font-medium uppercase tracking-widest px-4">
-              Fact-based IR Assistant powered by KCC AI Data & {selectedModel === 'pro' ? 'Gemini 2.5 Pro' : selectedModel === 'lite' ? 'Gemini 2.0 Flash Lite' : 'Gemini 2.5 Flash'}
+              Fact-based IR Assistant powered by DART Open API & {modelDisplayName(provider, selectedModel)}
             </p>
           </div>
 
-          <div 
+          <div
             className="hidden lg:flex w-1.5 hover:w-2 bg-transparent hover:bg-kcc-sky/50 cursor-col-resize transition-all z-10 shrink-0 items-center justify-center group"
             onMouseDown={() => setIsDragging(true)}
           >
             <div className="h-8 w-0.5 bg-black/10 group-hover:bg-white rounded-full" />
           </div>
 
-          <aside 
+          <aside
             className={cn(
-              "w-full bg-white/30 p-4 lg:p-5 flex flex-col shrink-0 overflow-y-auto border-l border-black/5 scrollbar-hide transition-all duration-300",
+              "w-full bg-white/40 p-4 lg:p-5 flex flex-col shrink-0 overflow-y-auto border-l border-black/5 scrollbar-hide transition-all duration-300",
               activeTab !== 'dashboard' && "hidden lg:flex"
             )}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
@@ -803,28 +894,77 @@ export default function App() {
             <section className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest flex items-center gap-1.5">
-                  <Activity size={12} className="text-kcc-sky" /> 2025년 주요 실적 지표
+                  <Activity size={12} className="text-kcc-sky" /> {kpiYear}년 주요 실적 지표
                 </h2>
-                <span className="text-[10px] bg-kcc-sky/10 text-kcc-sky px-2 py-0.5 rounded-full font-bold">연간 누계</span>
+                <div className="flex items-center gap-1.5">
+                  {dartStatus === 'ok' && dartSummary && (
+                    <span
+                      className="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full font-bold"
+                      title={`DART 수집 시각: ${new Date(dartSummary.lastSync).toLocaleString()}`}
+                    >
+                      DART 연동
+                    </span>
+                  )}
+                  <span className="text-[10px] bg-kcc-sky/10 text-kcc-sky px-2 py-0.5 rounded-full font-bold">연간 누계</span>
+                </div>
               </div>
-              
+
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                <div className="bg-white p-3 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
                   <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">매출액</p>
-                  <span className="text-[14px] font-black text-kcc-navy">6.48조</span>
-                  <span className="text-[9px] text-green-500 font-bold">-</span>
+                  <span className="text-[15px] font-black text-kcc-navy">
+                    {dartSummary?.revenue !== null && dartSummary?.revenue !== undefined ? formatKrw(dartSummary.revenue) : '6.48조'}
+                  </span>
+                  <YoyBadge value={dartSummary?.yoy.revenue ?? null} />
                 </div>
-                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                <div className="bg-white p-3 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
                   <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">영업이익</p>
-                  <span className="text-[14px] font-black text-kcc-navy">4,276억</span>
-                  <span className="text-[9px] text-green-500 font-bold">-</span>
+                  <span className="text-[15px] font-black text-kcc-navy">
+                    {dartSummary?.operatingProfit !== null && dartSummary?.operatingProfit !== undefined ? formatKrw(dartSummary.operatingProfit) : '4,276억'}
+                  </span>
+                  <YoyBadge value={dartSummary?.yoy.operatingProfit ?? null} />
                 </div>
-                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                <div className="bg-white p-3 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
                   <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">자산총계</p>
-                  <span className="text-[14px] font-black text-kcc-navy">16.8조</span>
-                  <span className="text-[9px] text-zinc-400 font-bold">-</span>
+                  <span className="text-[15px] font-black text-kcc-navy">
+                    {dartSummary?.totalAssets !== null && dartSummary?.totalAssets !== undefined ? formatKrw(dartSummary.totalAssets) : '16.8조'}
+                  </span>
+                  <YoyBadge value={dartSummary?.yoy.totalAssets ?? null} />
                 </div>
               </div>
+
+              {dartSummary && dartSummary.debtRatioTrend.length >= 2 && (
+                <div className="mt-3 bg-white p-3 rounded-xl shadow-sm border border-black/5">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[9px] text-zinc-500 font-bold uppercase flex items-center gap-1">
+                      <BarChart3 size={10} className="text-kcc-sky" /> 부채비율 추이 (연결)
+                    </p>
+                    <span className="text-[11px] font-black text-kcc-navy">
+                      {dartSummary.debtRatioTrend[dartSummary.debtRatioTrend.length - 1].value}%
+                    </span>
+                  </div>
+                  <div className="h-24">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={dartSummary.debtRatioTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                        <defs>
+                          <linearGradient id="debtGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#00AEEF" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="#00AEEF" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis dataKey="year" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                        <RechartsTooltip
+                          formatter={(v: any) => [`${v}%`, '부채비율']}
+                          contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #eee' }}
+                        />
+                        <Area type="monotone" dataKey="value" stroke="#00AEEF" strokeWidth={2} fill="url(#debtGrad)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
             </section>
 
             <section className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -855,13 +995,13 @@ export default function App() {
 
       <AnimatePresence>
         {showPasswordPrompt && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
@@ -876,8 +1016,8 @@ export default function App() {
                   <p className="text-sm text-zinc-500">비밀번호 4자리를 입력해 주세요.</p>
                 </div>
                 <div className="pt-4">
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     autoFocus
                     maxLength={4}
                     value={passwordInput}
@@ -897,13 +1037,13 @@ export default function App() {
                   )}
                 </div>
                 <div className="flex gap-3 pt-6">
-                  <button 
+                  <button
                     onClick={() => setShowPasswordPrompt(false)}
                     className="flex-1 py-3 rounded-xl text-sm font-bold text-zinc-500 hover:bg-zinc-100 transition-colors"
                   >
                     취소
                   </button>
-                  <button 
+                  <button
                     onClick={handlePasswordSubmit}
                     className="flex-1 py-3 bg-kcc-navy text-white rounded-xl text-sm font-bold hover:bg-kcc-navy/90 transition-all shadow-lg shadow-kcc-navy/20"
                   >
