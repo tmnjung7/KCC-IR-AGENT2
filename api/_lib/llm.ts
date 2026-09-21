@@ -17,6 +17,7 @@ import {
   ENGLISH_MODE_SUFFIX,
   buildFullSystemInstruction,
   shouldUseSearch,
+  STRICT_ANSWER_RULES,
 } from "./prompt.js";
 
 export type Provider = "gemini" | "claude";
@@ -28,6 +29,7 @@ export interface ChatRequest {
   prompt: string;
   context: string;
   isEnglishMode: boolean;
+  strict?: boolean; // 개선판(v2): 전망치·추정치 인용 차단 규칙 적용
 }
 
 export type SendEvent = (data: object) => void;
@@ -74,7 +76,7 @@ async function streamGemini(req: ChatRequest, send: SendEvent, isAborted: () => 
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const systemInstruction = buildFullSystemInstruction(req.context, req.isEnglishMode);
+  const systemInstruction = buildFullSystemInstruction(req.context, req.isEnglishMode, !!req.strict);
   const useSearch = shouldUseSearch(req.prompt, req.context);
   let usedModel = GEMINI_MODELS[req.tier] || GEMINI_MODELS.flash;
 
@@ -165,7 +167,7 @@ async function streamClaude(req: ChatRequest, send: SendEvent, isAborted: () => 
   const useSearch = shouldUseSearch(req.prompt, req.context);
 
   // 프롬프트 캐싱: 고정 지침 블록에만 cache_control → 이후 요청은 해당 부분 ~90% 절감
-  const contextBlockText = `## 8. 데이터 컨텍스트\n\n${req.context}${req.isEnglishMode ? ENGLISH_MODE_SUFFIX : ""}`;
+  const contextBlockText = `## 8. 데이터 컨텍스트\n\n${req.context}${req.strict ? STRICT_ANSWER_RULES : ""}${req.isEnglishMode ? ENGLISH_MODE_SUFFIX : ""}`;
   const system: Anthropic.TextBlockParam[] = [
     { type: "text", text: STATIC_SYSTEM_INSTRUCTION, cache_control: { type: "ephemeral" } },
     { type: "text", text: contextBlockText },

@@ -132,7 +132,7 @@ async function startServer() {
 
   // ── 채팅 (Gemini / Claude 공용 SSE 스트림) ───────────────────────────────
   app.post("/api/chat", async (req, res) => {
-    const { prompt, context, model, provider, isEnglishMode } = req.body || {};
+    const { prompt, context, model, provider, isEnglishMode, strict } = req.body || {};
     if (!prompt) return res.status(400).json({ error: "prompt is required" });
 
     const limit = checkRateLimit(req);
@@ -145,6 +145,7 @@ async function startServer() {
       prompt: String(prompt),
       context: String(context || ""),
       isEnglishMode: !!isEnglishMode,
+      strict: !!strict,
     };
 
     res.setHeader("Content-Type", "text/event-stream");
