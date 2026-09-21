@@ -154,6 +154,7 @@ export default function App() {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(false);
   const [repoPath, setRepoPath] = useState('tmnjung7/KCC-IR-AGENT2');
   const [allFileData, setAllFileData] = useState<{name: string, data: any[]}[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -254,7 +255,7 @@ export default function App() {
   // DART 자동 수집 + GitHub CSV(보조 지식베이스)를 병렬 로드해 병합
   const loadAllData = async () => {
     setIsDataLoaded(false);
-    setIsLoading(true);
+    setIsDataLoading(true);
     setError(null);
     setDartStatus('loading');
 
@@ -299,7 +300,7 @@ export default function App() {
       const dartMsg = dartResult.status === 'rejected' ? (dartResult.reason?.message || 'DART 연동 실패') : '';
       setError(`데이터 로드 실패: ${dartMsg || 'DART와 GitHub 저장소 모두에서 데이터를 가져오지 못했습니다.'}`);
     }
-    setIsLoading(false);
+    setIsDataLoading(false);
   };
 
   useEffect(() => {
@@ -488,7 +489,7 @@ export default function App() {
               <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4 flex justify-between items-center">
                 <span>Loaded Sources ({allFileData.length})</span>
                 <button onClick={loadAllData} className="hover:text-kcc-sky transition-colors p-1">
-                  <RefreshCw size={12} className={cn(isLoading && "animate-spin")} />
+                  <RefreshCw size={12} className={cn(isDataLoading && "animate-spin")} />
                 </button>
               </h2>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
@@ -618,12 +619,17 @@ export default function App() {
               <h1 className="text-sm lg:text-lg font-extrabold tracking-tight text-kcc-navy truncate">KCC IR AI 어시스턴트</h1>
               <div className="hidden lg:flex items-center gap-2">
                 <p className="text-[10px] text-zinc-500 font-medium">재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.</p>
-                {dartStatus === 'ok' && (
+                {isDataLoading && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded-full">
+                    <Loader2 size={9} className="animate-spin" /> 데이터 동기화 중
+                  </span>
+                )}
+                {!isDataLoading && dartStatus === 'ok' && (
                   <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
                     <Landmark size={9} /> DART 자동연동
                   </span>
                 )}
-                {dartStatus === 'off' && (
+                {!isDataLoading && dartStatus === 'off' && (
                   <span
                     className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-full cursor-help"
                     title={dartError || 'DART 연동 실패 사유를 확인할 수 없습니다.'}
