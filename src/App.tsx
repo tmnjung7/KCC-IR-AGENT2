@@ -506,6 +506,18 @@ export default function App() {
                 <Landmark size={9} className="inline mr-1 text-emerald-400" />
                 DART_ 소스는 전자공시시스템에서 자동 수집됩니다 (6시간 캐시).
               </p>
+              {dartSummary?.corpCode && (
+                <p className="text-[9px] text-emerald-400/80 mt-1.5 leading-relaxed bg-white/5 rounded p-2">
+                  {dartSummary.corpName} 고유번호: <span className="font-mono font-bold">{dartSummary.corpCode}</span>
+                  <br />
+                  <span className="text-zinc-500">환경변수 DART_CORP_CODE에 이 값을 넣으면 초기 로딩이 크게 빨라집니다.</span>
+                </p>
+              )}
+              {dartStatus === 'off' && dartError && (
+                <p className="text-[9px] text-amber-400 mt-1.5 leading-relaxed bg-amber-500/10 rounded p-2">
+                  ⚠️ DART 연동 실패: {dartError}
+                </p>
+              )}
             </div>
             <div className="px-2 py-6 border-t border-white/5 relative">
               <div className="flex items-center justify-between mb-4">

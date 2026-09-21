@@ -39,6 +39,7 @@ export interface DartFile {
 
 export interface DartSummary {
   corpName: string;
+  corpCode: string;
   latestYear: string;
   revenue: number | null;          // 백만원
   operatingProfit: number | null;  // 백만원
@@ -235,6 +236,7 @@ export async function fetchDartDataset(options?: { force?: boolean }): Promise<D
   const files: DartFile[] = [];
   const summary: DartSummary = {
     corpName,
+    corpCode,
     latestYear: String(latestAnnualYear),
     revenue: null,
     operatingProfit: null,
