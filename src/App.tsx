@@ -1054,7 +1054,7 @@ export default function App() {
             {news.length > 0 && (
               <section className="mb-4">
                 <h2 className="text-[14px] font-extrabold text-kcc-navy mb-2 flex items-center gap-1.5">
-                  <Newspaper size={15} className="text-kcc-sky" /> KCC 주요 뉴스
+                  <Newspaper size={15} className="text-kcc-sky" /> KCC 관련 뉴스
                 </h2>
                 <div className="bg-white rounded-xl border border-black/5 shadow-sm p-1 max-h-40 overflow-y-auto scrollbar-hide divide-y divide-black/[0.04]">
                   {news.map((n, i) => (

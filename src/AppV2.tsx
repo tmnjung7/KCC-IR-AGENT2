@@ -701,7 +701,7 @@ export default function AppV2() {
             <div className="flex bg-[#F4F6FA] p-1 rounded-xl text-[12px] font-bold mb-2">
               <button onClick={() => setFeedTab('news')}
                 className={cn('flex-1 py-1.5 rounded-lg transition-all', feedTab === 'news' ? 'bg-white shadow-sm' : 'text-zinc-400')}
-                style={feedTab === 'news' ? { color: CI.navy } : undefined}>주요 뉴스</button>
+                style={feedTab === 'news' ? { color: CI.navy } : undefined}>관련 뉴스</button>
               <button onClick={() => setFeedTab('dart')}
                 className={cn('flex-1 py-1.5 rounded-lg transition-all', feedTab === 'dart' ? 'bg-white shadow-sm' : 'text-zinc-400')}
                 style={feedTab === 'dart' ? { color: CI.navy } : undefined}>DART 공시</button>
