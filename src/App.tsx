@@ -159,10 +159,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
-  // 화면 폭의 약 42% (520~860px)로 시작해 어떤 모니터에서도 균형 유지, 드래그로 조절 가능
+  // 화면 폭의 약 38% (500~800px)로 시작해 어떤 모니터에서도 균형 유지, 드래그로 조절 가능
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    if (typeof window === 'undefined') return 680;
-    return Math.min(860, Math.max(520, Math.round(window.innerWidth * 0.42)));
+    if (typeof window === 'undefined') return 640;
+    return Math.min(800, Math.max(500, Math.round(window.innerWidth * 0.38)));
   });
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
