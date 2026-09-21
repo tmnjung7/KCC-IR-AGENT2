@@ -15,7 +15,9 @@ import {
   RefreshCw,
   Landmark,
   Sparkles,
-  Newspaper
+  Newspaper,
+  Mail,
+  CalendarDays
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -667,15 +669,15 @@ export default function App() {
       )}
 
       <div className="flex-1 flex flex-col min-w-0 bg-white/60 backdrop-blur-xl lg:m-2 lg:rounded-2xl shadow-2xl border-x lg:border border-white/30 overflow-hidden">
-        <header className="h-14 lg:h-16 border-b border-black/5 bg-white/90 flex items-center justify-between px-4 lg:px-6 shrink-0">
+        <header className="h-14 lg:h-[84px] border-b border-black/5 bg-white/90 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-3 lg:gap-4">
-            <img src="/kcc-logo.png" alt="KCC" className="h-8 lg:h-10 w-auto shrink-0 select-none" draggable={false} />
+            <img src="/kcc-logo.png" alt="KCC" className="h-8 lg:h-12 w-auto shrink-0 select-none" draggable={false} />
             <div className="min-w-0">
-              <h1 className="text-sm lg:text-lg font-extrabold tracking-tight text-kcc-navy truncate">
+              <h1 className="text-base lg:text-[26px] font-black tracking-tight text-kcc-navy truncate leading-tight">
                 KCC IR<span className="text-kcc-sky">:</span>ON
               </h1>
               <div className="hidden lg:flex items-center gap-2">
-                <p className="text-[10px] text-zinc-500 font-medium">DART 공시 데이터 기반 AI 투자자 소통 서비스</p>
+                <p className="text-[11px] text-zinc-500 font-medium">DART 공시 데이터 기반 AI 투자자 소통 서비스</p>
                 {isDataLoading && (
                   <span className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded-full">
                     <Loader2 size={9} className="animate-spin" /> 데이터 동기화 중
@@ -694,6 +696,30 @@ export default function App() {
                     <AlertCircle size={9} /> 수동 데이터 모드
                   </span>
                 )}
+              </div>
+              <div className="hidden lg:flex items-center gap-1.5 mt-1">
+                <a
+                  href="https://kccworld.irpage.co.kr/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[10px] font-bold text-kcc-navy bg-kcc-navy/5 border border-kcc-navy/10 rounded-full px-2 py-0.5 hover:bg-kcc-navy hover:text-white transition-colors"
+                >
+                  <Globe size={10} /> IR 홈페이지
+                </a>
+                <a
+                  href="mailto:ygjung@kccworld.co.kr"
+                  className="flex items-center gap-1 text-[10px] font-bold text-kcc-navy bg-kcc-navy/5 border border-kcc-navy/10 rounded-full px-2 py-0.5 hover:bg-kcc-navy hover:text-white transition-colors"
+                >
+                  <Mail size={10} /> IR 문의
+                </a>
+                <a
+                  href="https://kccworld.irpage.co.kr/ermt01/meeting"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[10px] font-bold text-kcc-navy bg-kcc-navy/5 border border-kcc-navy/10 rounded-full px-2 py-0.5 hover:bg-kcc-navy hover:text-white transition-colors"
+                >
+                  <CalendarDays size={10} /> IR 미팅 예약
+                </a>
               </div>
             </div>
           </div>
