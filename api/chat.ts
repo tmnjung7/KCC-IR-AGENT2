@@ -1,4 +1,5 @@
 import { streamChat, type ChatRequest } from "./_lib/llm.js";
+import { checkRateLimit } from "./_lib/ratelimit.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -10,9 +11,15 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: "prompt is required" });
   }
 
+  const limit = checkRateLimit(req);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: limit.message });
+  }
+
   const chatReq: ChatRequest = {
     provider: provider === "claude" ? "claude" : "gemini",
-    tier: model === "lite" ? "lite" : model === "pro" ? "pro" : "flash",
+    // PRO 티어는 비용 문제로 비활성화 — 요청이 와도 FLASH로 처리
+    tier: model === "lite" ? "lite" : "flash",
     prompt: String(prompt),
     context: String(context || ""),
     isEnglishMode: !!isEnglishMode,

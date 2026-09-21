@@ -390,6 +390,8 @@ export default function App() {
     if (passwordInput === '0815' || passwordInput === adminPassword) {
       setIsAdminMode(true);
       setShowPasswordPrompt(false);
+      // 관리자 인증 토큰 저장 → 채팅 요청 제한 우회 (탭 닫으면 소멸)
+      try { sessionStorage.setItem('kcc_admin_token', passwordInput); } catch { /* 무시 */ }
       setPasswordInput('');
       setPasswordError(false);
     } else {
@@ -766,18 +768,6 @@ export default function App() {
                 )}
               >
                 FLASH
-              </button>
-              <button
-                onClick={() => setSelectedModel('pro')}
-                title={modelDisplayName(provider, 'pro')}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300",
-                  selectedModel === 'pro'
-                    ? "bg-kcc-navy text-white shadow-md"
-                    : "text-zinc-400 hover:text-zinc-600"
-                )}
-              >
-                PRO
               </button>
             </div>
 

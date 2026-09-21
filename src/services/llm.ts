@@ -30,9 +30,16 @@ export const getAIResponse = async (
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // 관리자 모드 인증 시 저장된 토큰 → 요청 제한 우회 (관리자 테스트용)
+      let adminToken = '';
+      try { adminToken = sessionStorage.getItem('kcc_admin_token') || ''; } catch { /* 무시 */ }
+
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminToken ? { "x-admin-token": adminToken } : {}),
+        },
         body: JSON.stringify({ prompt, context, provider, model, isEnglishMode }),
       });
 
