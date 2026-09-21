@@ -171,7 +171,7 @@ export default function AppV2() {
   const [feedTab, setFeedTab] = useState<'news' | 'dart'>('news');
   const [provider, setProvider] = useState<Provider>('gemini');
   const [providerAvail, setProviderAvail] = useState<ProviderAvailability>({ gemini: true, claude: false, dart: false });
-  const [tier, setTier] = useState<ModelTier>('lite'); // 빠른 답변 기본
+  const [tier, setTier] = useState<ModelTier>('flash'); // 오리지널과 동일 (상세 답변 = FLASH)
   const [isEnglishMode, setIsEnglishMode] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showNotice, setShowNotice] = useState(() => {
@@ -231,7 +231,13 @@ export default function AppV2() {
     loadQuote();
     const iv = setInterval(loadQuote, 60000);
     fetch('/api/news').then(r => r.ok ? r.json() : null)
-      .then(d => { if (Array.isArray(d?.items)) setNews(d.items); }).catch(() => {});
+      .then(d => {
+        if (!Array.isArray(d?.items)) return;
+        // 최근 2일 뉴스만 표시, 없으면 최신 5건 폴백
+        const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const recent = d.items.filter((n: NewsItemData) => n.date && n.date >= cutoff);
+        setNews(recent.length > 0 ? recent : d.items.slice(0, 5));
+      }).catch(() => {});
     return () => clearInterval(iv);
   }, []);
 
@@ -272,7 +278,7 @@ export default function AppV2() {
           if (chunkCount === 1) setIsLoading(false);
           setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + chunk } : m));
         },
-        true // strict
+        false // 답변 로직은 오리지널과 동일하게 유지 (디자인만 개선)
       );
       const { sources, hasOfficial } = classifySources(responseData?.groundingMetadata);
       setMessages(prev => prev.map(m => m.id === assistantId ? {
@@ -281,9 +287,19 @@ export default function AppV2() {
         sources, hasOfficial: sources.length === 0 ? true : hasOfficial,
       } : m));
     } catch (err: any) {
-      const msg = String(err?.message || '');
-      const friendly = msg.includes('한도') ? msg
-        : msg.includes('API 키') ? msg
+      // 서버가 보낸 실제 오류 문구를 최대한 그대로 노출 (진단 용이)
+      let raw = String(err?.message || '');
+      try {
+        const jsonMatch = raw.match(/\{.*\}/);
+        if (jsonMatch) {
+          const j = JSON.parse(jsonMatch[0]);
+          raw = (typeof j.error === 'string' ? j.error : j.error?.message) || raw;
+        }
+      } catch { /* 무시 */ }
+      const friendly =
+        raw.includes('429') || raw.includes('quota') ? '현재 AI 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요.'
+        : raw.includes('404') || raw.includes('not found') ? 'AI 모델 연결에 문제가 있습니다. 상단에서 "상세 답변"으로 전환해 다시 시도해 주세요.'
+        : raw && raw.length < 250 ? raw
         : '오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
       setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, kind: 'error', content: `⚠️ ${friendly}` } : m));
     } finally {
@@ -547,7 +563,7 @@ export default function AppV2() {
         <aside className="hidden lg:flex flex-col gap-4 overflow-y-auto scrollbar-hide p-4 shrink-0"
           style={{ width: 'clamp(520px, 40vw, 760px)' }}>
           {/* 주가 카드 */}
-          <div className="rounded-2xl text-white px-5 py-4 shadow-md"
+          <div className="rounded-2xl text-white px-5 py-4 shadow-md shrink-0"
             style={{ background: `linear-gradient(135deg, ${CI.navy}, ${CI.blue})` }}>
             {quote ? (
               <>
@@ -578,7 +594,7 @@ export default function AppV2() {
           </div>
 
           {/* KPI 카드 */}
-          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5">
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shrink-0">
             <h3 className="text-[15.5px] font-extrabold flex items-center gap-2 mb-3.5" style={{ color: CI.navy }}>
               <Activity size={16} className="text-[#0B57D0]" /> 주요 실적 지표
               <span className="ml-auto text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-[#E8F0FE] text-[#0B57D0]">
@@ -635,7 +651,7 @@ export default function AppV2() {
           </div>
 
           {/* 뉴스 · 공시 */}
-          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 min-h-0">
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shrink-0">
             <h3 className="text-[15.5px] font-extrabold flex items-center gap-2 mb-3" style={{ color: CI.navy }}>
               <Newspaper size={16} className="text-[#0B57D0]" /> 뉴스 · 공시
             </h3>
@@ -671,7 +687,7 @@ export default function AppV2() {
           </div>
 
           {/* FAQ */}
-          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5">
+          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shrink-0">
             <h3 className="text-[15.5px] font-extrabold flex items-center gap-2 mb-3" style={{ color: CI.navy }}>
               <MessageCircleQuestion size={16} className="text-[#0B57D0]" /> 자주 하는 질문
             </h3>

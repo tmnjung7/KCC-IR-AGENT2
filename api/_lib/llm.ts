@@ -63,7 +63,7 @@ export function availableProviders(): { gemini: boolean; claude: boolean; dart: 
 // Gemini
 // ─────────────────────────────────────────────────────────────────────────────
 const GEMINI_MODELS: Record<ModelTier, string> = {
-  lite: "gemini-2.0-flash-lite",
+  lite: "gemini-2.5-flash-lite",
   flash: "gemini-2.5-flash",
   pro: "gemini-2.5-pro",
 };
@@ -101,12 +101,17 @@ async function streamGemini(req: ChatRequest, send: SendEvent, isAborted: () => 
       if (searchOn && (msg.includes("tool") || msg.includes("search") || msg.includes("400"))) {
         return startStream(modelName, false, depth + 1);
       }
+      // 모델이 없어진 경우(서비스 종료 등) 상위 모델로 폴백
+      const isNotFound = msg.includes("404") || msg.toLowerCase().includes("not found") || msg.includes("NOT_FOUND");
+      if (isNotFound && modelName.includes("lite")) {
+        return startStream("gemini-2.5-flash", searchOn, depth + 1);
+      }
       const isRateLimit = msg.includes("429") || msg.includes("quota") || msg.includes("limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("exhausted");
       if (isRateLimit && modelName === "gemini-2.5-pro") {
         return startStream("gemini-2.5-flash", searchOn, depth + 1);
       }
       if (isRateLimit && modelName === "gemini-2.5-flash") {
-        return startStream("gemini-2.0-flash-lite", searchOn, depth + 1);
+        return startStream("gemini-2.5-flash-lite", searchOn, depth + 1);
       }
       if (isRateLimit && searchOn) {
         return startStream(modelName, false, depth + 1);
