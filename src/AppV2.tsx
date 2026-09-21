@@ -287,9 +287,19 @@ export default function AppV2() {
         sources, hasOfficial: sources.length === 0 ? true : hasOfficial,
       } : m));
     } catch (err: any) {
-      const msg = String(err?.message || '');
-      const friendly = msg.includes('한도') ? msg
-        : msg.includes('API 키') ? msg
+      // 서버가 보낸 실제 오류 문구를 최대한 그대로 노출 (진단 용이)
+      let raw = String(err?.message || '');
+      try {
+        const jsonMatch = raw.match(/\{.*\}/);
+        if (jsonMatch) {
+          const j = JSON.parse(jsonMatch[0]);
+          raw = (typeof j.error === 'string' ? j.error : j.error?.message) || raw;
+        }
+      } catch { /* 무시 */ }
+      const friendly =
+        raw.includes('429') || raw.includes('quota') ? '현재 AI 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요.'
+        : raw.includes('404') || raw.includes('not found') ? 'AI 모델 연결에 문제가 있습니다. 상단에서 "상세 답변"으로 전환해 다시 시도해 주세요.'
+        : raw && raw.length < 250 ? raw
         : '오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
       setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, kind: 'error', content: `⚠️ ${friendly}` } : m));
     } finally {

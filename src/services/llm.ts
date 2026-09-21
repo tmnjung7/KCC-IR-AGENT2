@@ -165,5 +165,5 @@ export const modelDisplayName = (provider: Provider, tier: ModelTier): string =>
   if (provider === 'claude') {
     return tier === 'pro' ? 'Claude Opus 5' : tier === 'lite' ? 'Claude Haiku 4.5' : 'Claude Sonnet 5';
   }
-  return tier === 'pro' ? 'Gemini 2.5 Pro' : tier === 'lite' ? 'Gemini 2.0 Flash Lite' : 'Gemini 2.5 Flash';
+  return tier === 'pro' ? 'Gemini 2.5 Pro' : tier === 'lite' ? 'Gemini 2.5 Flash Lite' : 'Gemini 2.5 Flash';
 };
