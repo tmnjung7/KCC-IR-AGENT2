@@ -95,7 +95,12 @@ const HINT_CHIPS: { label: string; faq?: string; ai?: string }[] = [
   { label: '최근 공시', faq: '공시 정보 및 IR 자료' },
 ];
 
-interface QuoteData { name: string; code: string; price: number; change: number; changePct: number; updatedAt: string; source: string }
+interface QuoteData {
+  name: string; code: string; price: number; change: number; changePct: number;
+  updatedAt: string; source: string;
+  marketCap?: string; high52?: string; low52?: string; foreignRate?: string;
+  volume?: string; dayHigh?: number; dayLow?: number;
+}
 interface NewsItemData { title: string; link: string; date: string; source: string }
 interface Disclosure { date: string; title: string; filer: string; url: string }
 
@@ -599,9 +604,31 @@ export default function AppV2() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-white/15 text-[11px] text-white/60">
-                  <div>시가총액<br /><b className="text-white text-[12.5px]">—</b></div>
-                  <div>52주 고/저<br /><b className="text-white text-[12.5px]">—</b></div>
-                  <div>외국인 지분율<br /><b className="text-white text-[12.5px]">—</b></div>
+                  {/* 조회 가능한 값 우선 표시: 시총 없으면 거래량, 52주 없으면 당일 고/저, 외국인 없으면 배당수익률 */}
+                  <div>
+                    {quote.marketCap ? '시가총액' : '거래량'}<br />
+                    <b className="text-white text-[12.5px]">{quote.marketCap || quote.volume || '—'}</b>
+                  </div>
+                  <div>
+                    {quote.high52 && quote.low52 ? '52주 고/저' : '당일 고/저'}<br />
+                    <b className="text-white text-[12.5px]">
+                      {quote.high52 && quote.low52
+                        ? `${quote.high52} / ${quote.low52}`
+                        : quote.dayHigh && quote.dayLow
+                          ? `${quote.dayHigh.toLocaleString()} / ${quote.dayLow.toLocaleString()}`
+                          : '—'}
+                    </b>
+                  </div>
+                  <div>
+                    {quote.foreignRate ? '외국인 지분율' : '배당수익률'}<br />
+                    <b className="text-white text-[12.5px]">
+                      {quote.foreignRate || (() => {
+                        const dps = dartSummary?.dividendPerShare;
+                        const latest = dps && dps.length > 0 ? dps[dps.length - 1].value : null;
+                        return latest && quote.price ? `${((latest / quote.price) * 100).toFixed(2)}%` : '—';
+                      })()}
+                    </b>
+                  </div>
                 </div>
               </>
             ) : (

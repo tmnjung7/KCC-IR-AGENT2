@@ -23,6 +23,14 @@ export interface Quote {
   changePct: number;
   updatedAt: string;
   source: string;
+  // 종목 상세 (네이버 모바일 증권, 조회 실패 시 생략)
+  marketCap?: string;   // 시가총액 (표시용 문자열)
+  high52?: string;      // 52주 최고
+  low52?: string;       // 52주 최저
+  foreignRate?: string; // 외국인 소진율
+  volume?: string;      // 당일 누적 거래량 (표시용)
+  dayHigh?: number;     // 당일 고가
+  dayLow?: number;      // 당일 저가
 }
 
 // KCC 농구단 등 회사와 무관한 기사 제외 키워드
@@ -161,7 +169,7 @@ async function fetchNaverQuote(): Promise<Quote | null> {
     change = -Math.abs(change);
     changePct = -Math.abs(changePct);
   }
-  return {
+  const q: Quote = {
     name: String(d.stockName || "KCC"),
     code,
     price,
@@ -170,6 +178,42 @@ async function fetchNaverQuote(): Promise<Quote | null> {
     updatedAt: new Date().toISOString(),
     source: "네이버 금융",
   };
+  const vol = numOf(d.accumulatedTradingVolume);
+  if (vol > 0) q.volume = vol >= 10000 ? `${Math.round(vol / 10000).toLocaleString()}만주` : `${vol.toLocaleString()}주`;
+  const dh = numOf(d.highPrice); const dl = numOf(d.lowPrice);
+  if (dh > 0) q.dayHigh = dh;
+  if (dl > 0) q.dayLow = dl;
+  return q;
+}
+
+// ── 종목 상세(시총·52주·외국인) — 네이버 모바일 증권 ────────────────────────
+async function fetchNaverExtra(code: string): Promise<Partial<Quote>> {
+  try {
+    const res = await fetchWithTimeout(`https://m.stock.naver.com/api/stock/${code}/integration`, {
+      headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+    });
+    if (!res.ok) return {};
+    const json: any = await res.json();
+    const infos: any[] = Array.isArray(json?.totalInfos) ? json.totalInfos : [];
+    const pick = (...keys: string[]): string | undefined => {
+      const entry = infos.find((i) =>
+        keys.some((k) =>
+          String(i?.code || "").toLowerCase().includes(k.toLowerCase()) ||
+          String(i?.key || "").includes(k)
+        )
+      );
+      const v = entry ? String(entry.value ?? "").trim() : "";
+      return v && v !== "-" ? v : undefined;
+    };
+    return {
+      marketCap: pick("marketValue", "시가총액", "시총"),
+      high52: pick("high52", "52주 최고"),
+      low52: pick("low52", "52주 최저"),
+      foreignRate: pick("foreignRate", "외국인소진율", "외국인"),
+    };
+  } catch {
+    return {};
+  }
 }
 
 // ── 주가: Yahoo Finance 폴백 ────────────────────────────────────────────────
@@ -185,7 +229,7 @@ async function fetchYahooQuote(): Promise<Quote | null> {
   const prev = Number(meta.chartPreviousClose || meta.previousClose || price);
   const change = Math.round((price - prev) * 100) / 100;
   const changePct = prev ? Math.round(((price - prev) / prev) * 10000) / 100 : 0;
-  return {
+  const q: Quote = {
     name: "KCC",
     code,
     price,
@@ -194,6 +238,9 @@ async function fetchYahooQuote(): Promise<Quote | null> {
     updatedAt: new Date().toISOString(),
     source: "Yahoo Finance",
   };
+  if (meta.fiftyTwoWeekHigh) q.high52 = Number(meta.fiftyTwoWeekHigh).toLocaleString();
+  if (meta.fiftyTwoWeekLow) q.low52 = Number(meta.fiftyTwoWeekLow).toLocaleString();
+  return q;
 }
 
 export async function fetchQuote(): Promise<Quote> {
@@ -206,6 +253,10 @@ export async function fetchQuote(): Promise<Quote> {
     try { quote = await fetchYahooQuote(); } catch (e) { console.warn("[Quote] Yahoo 실패:", e); }
   }
   if (!quote) throw new Error("주가 정보를 가져오지 못했습니다.");
+
+  // 시총·52주·외국인 소진율 보강 (실패해도 기본 시세는 유지)
+  const extra = await fetchNaverExtra(quote.code);
+  quote = { ...quote, ...Object.fromEntries(Object.entries(extra).filter(([, v]) => v)) };
 
   quoteCache = { at: now, data: quote };
   return quote;
