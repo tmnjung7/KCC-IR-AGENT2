@@ -7,6 +7,7 @@ import "dotenv/config";
 import { streamChat, availableProviders, type ChatRequest } from "./api/_lib/llm.js";
 import { fetchDartDataset, DartError } from "./api/_lib/dart.js";
 import { fetchNews, fetchQuote } from "./api/_lib/market.js";
+import { checkRateLimit } from "./api/_lib/ratelimit.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -134,9 +135,13 @@ async function startServer() {
     const { prompt, context, model, provider, isEnglishMode } = req.body || {};
     if (!prompt) return res.status(400).json({ error: "prompt is required" });
 
+    const limit = checkRateLimit(req);
+    if (!limit.allowed) return res.status(429).json({ error: limit.message });
+
     const chatReq: ChatRequest = {
       provider: provider === "claude" ? "claude" : "gemini",
-      tier: model === "lite" ? "lite" : model === "pro" ? "pro" : "flash",
+      // PRO 티어는 비용 문제로 비활성화 — 요청이 와도 FLASH로 처리
+      tier: model === "lite" ? "lite" : "flash",
       prompt: String(prompt),
       context: String(context || ""),
       isEnglishMode: !!isEnglishMode,
