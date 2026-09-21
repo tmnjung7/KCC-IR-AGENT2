@@ -14,7 +14,8 @@ import {
   Globe,
   RefreshCw,
   Landmark,
-  Sparkles
+  Sparkles,
+  Newspaper
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -50,6 +51,23 @@ interface FAQItem {
   id: string;
   question: string;
   answer: string;
+}
+
+interface QuoteData {
+  name: string;
+  code: string;
+  price: number;
+  change: number;
+  changePct: number;
+  updatedAt: string;
+  source: string;
+}
+
+interface NewsItemData {
+  title: string;
+  link: string;
+  date: string;
+  source: string;
 }
 
 const DEFAULT_FAQ_ANSWERS: FAQItem[] = [
@@ -178,6 +196,27 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
   const [isEnglishMode, setIsEnglishMode] = useState(false);
+  const [quote, setQuote] = useState<QuoteData | null>(null);
+  const [news, setNews] = useState<NewsItemData[]>([]);
+
+  // 실시간 주가 (60초 갱신) + 주요 뉴스 (로드 시 1회, 서버 30분 캐시)
+  useEffect(() => {
+    const loadQuote = () => {
+      fetch('/api/quote')
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => { if (d && !d.error && d.price) setQuote(d); })
+        .catch(() => {});
+    };
+    loadQuote();
+    const interval = setInterval(loadQuote, 60000);
+
+    fetch('/api/news')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (Array.isArray(d?.items)) setNews(d.items); })
+      .catch(() => {});
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem('kcc_llm_provider', provider); } catch {}
@@ -624,9 +663,7 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 bg-white/60 backdrop-blur-xl lg:m-2 lg:rounded-2xl shadow-2xl border-x lg:border border-white/30 overflow-hidden">
         <header className="h-14 lg:h-16 border-b border-black/5 bg-white/90 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-3 lg:gap-4">
-            <div className="flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-gradient-to-br from-kcc-navy to-[#0055D4] shadow-md shadow-kcc-navy/20">
-              <span className="text-[13px] lg:text-[15px] font-black italic tracking-tighter text-white">KCC</span>
-            </div>
+            <img src="/kcc-logo.png" alt="KCC" className="h-8 lg:h-10 w-auto shrink-0 select-none" draggable={false} />
             <div className="min-w-0">
               <h1 className="text-sm lg:text-lg font-extrabold tracking-tight text-kcc-navy truncate">KCC IR AI 어시스턴트</h1>
               <div className="hidden lg:flex items-center gap-2">
@@ -915,6 +952,30 @@ export default function App() {
             )}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
           >
+            {quote && (
+              <div className="mb-4 bg-white rounded-xl shadow-sm border border-black/5 p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <img src="/kcc-logo.png" alt="" className="h-5 w-auto" />
+                  <div>
+                    <p className="text-[11px] font-bold text-zinc-700">
+                      {quote.name} <span className="text-zinc-400 font-medium">{quote.code}</span>
+                    </p>
+                    <p className="text-[9px] text-zinc-400">
+                      {new Date(quote.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 기준 · {quote.source}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[17px] font-black text-kcc-navy leading-tight">
+                    {quote.price.toLocaleString()}<span className="text-[10px] font-bold text-zinc-400 ml-0.5">원</span>
+                  </p>
+                  <p className={cn("text-[10px] font-bold", quote.change >= 0 ? "text-red-500" : "text-blue-500")}>
+                    {quote.change >= 0 ? '▲' : '▼'} {Math.abs(quote.change).toLocaleString()} ({quote.changePct >= 0 ? '+' : ''}{quote.changePct}%)
+                  </p>
+                </div>
+              </div>
+            )}
+
             <section className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest flex items-center gap-1.5">
@@ -990,6 +1051,30 @@ export default function App() {
                 </div>
               )}
             </section>
+
+            {news.length > 0 && (
+              <section className="mb-5">
+                <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Newspaper size={12} className="text-kcc-sky" /> KCC 주요 뉴스
+                </h2>
+                <div className="bg-white rounded-xl border border-black/5 shadow-sm p-1.5 max-h-52 overflow-y-auto scrollbar-hide divide-y divide-black/[0.04]">
+                  {news.map((n, i) => (
+                    <a
+                      key={i}
+                      href={n.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block px-2 py-2 rounded-lg hover:bg-kcc-navy/5 transition-colors"
+                    >
+                      <p className="text-[11px] font-bold text-zinc-700 leading-snug line-clamp-2">{n.title}</p>
+                      <p className="text-[9px] text-zinc-400 mt-0.5">
+                        {n.date ? n.date.slice(5).replace('-', '.') : ''}{n.source ? ` · ${n.source}` : ''}
+                      </p>
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-3 flex items-center gap-2">
