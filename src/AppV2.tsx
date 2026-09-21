@@ -16,7 +16,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Search, Loader2, Settings, Globe, Mail, CalendarDays, Newspaper, Activity,
   BarChart3, TrendingUp, Landmark, ChevronRight, ChevronDown, ChevronUp,
-  AlertCircle, MessageCircleQuestion, X, Target, Coins, Factory, Rocket,
+  AlertCircle, MessageCircleQuestion, X, PieChart, Coins, Factory, Rocket,
   Globe2, FileText, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -46,7 +46,7 @@ const FAQ_LIST: FAQItem[] = defaultFaqData as FAQItem[];
 // FAQ 메타 (아이콘·한 줄 설명·후속 질문)
 const FAQ_META: Record<string, { icon: React.ReactNode; desc: string; follow: string[] }> = {
   '주주환원·기업가치 제고 계획 (밸류업)': {
-    icon: <Target size={15} />, desc: '2030 PBR 1배 · 영업이익률 10% 목표',
+    icon: <TrendingUp size={15} />, desc: '2030 PBR 1배 · 영업이익률 10% 목표',
     follow: ['최근 배당금 및 배당정책', '자사주 매입 및 소각 계획'],
   },
   '최근 배당금 및 배당정책': {
@@ -54,7 +54,7 @@ const FAQ_META: Record<string, { icon: React.ReactNode; desc: string; follow: st
     follow: ['주주환원·기업가치 제고 계획 (밸류업)', '자사주 매입 및 소각 계획'],
   },
   '자사주 매입 및 소각 계획': {
-    icon: <TrendingUp size={15} />, desc: '117만주 4회 분할 소각 · 2027년 9월 완료',
+    icon: <PieChart size={15} />, desc: '117만주 4회 분할 소각 · 2027년 9월 완료',
     follow: ['주주환원·기업가치 제고 계획 (밸류업)', '최근 배당금 및 배당정책'],
   },
   '최근 사업부문별 주요 이슈': {
@@ -82,7 +82,7 @@ const findFaq = (question: string): FAQItem | undefined =>
 const START_CARDS = [
   { icon: <Factory size={16} />, title: '2026년 2분기 실적 한눈에', desc: '매출 · 영업이익 · 부문별 실적', faq: '최근 사업부문별 주요 이슈' },
   { icon: <Coins size={16} />, title: '배당 · 자사주 정책', desc: 'DPS 15,000원 · 특별배당 연동 · 소각', faq: '최근 배당금 및 배당정책' },
-  { icon: <Target size={16} />, title: '기업가치 제고 계획(밸류업)', desc: '2030 PBR 1배 · 영업이익률 10%', faq: '주주환원·기업가치 제고 계획 (밸류업)' },
+  { icon: <TrendingUp size={16} />, title: '기업가치 제고 계획(밸류업)', desc: '2030 PBR 1배 · 영업이익률 10%', faq: '주주환원·기업가치 제고 계획 (밸류업)' },
   { icon: <FileText size={16} />, title: '공시 · IR 자료 찾기', desc: 'DART · IR 홈페이지 바로가기', faq: '공시 정보 및 IR 자료' },
 ];
 
