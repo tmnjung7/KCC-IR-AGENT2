@@ -11,6 +11,7 @@ export interface IRData {
 
 export interface DartSummary {
   corpName: string;
+  corpCode?: string;
   latestYear: string;
   revenue: number | null;
   operatingProfit: number | null;
