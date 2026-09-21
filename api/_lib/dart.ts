@@ -309,7 +309,7 @@ export async function fetchDartDataset(options?: { force?: boolean }): Promise<D
   const fmt = (d: Date) =>
     `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   const listEnd = new Date();
-  const listBegin = new Date(listEnd.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const listBegin = new Date(listEnd.getTime() - 30 * 24 * 60 * 60 * 1000); // 최근 1개월
 
   const majorP = dartJsonOrNull("fnlttSinglAcnt.json", {
     crtfc_key: apiKey,
@@ -522,7 +522,7 @@ export async function fetchDartDataset(options?: { force?: boolean }): Promise<D
         `${row.rcept_dt} 접수된 공시: ${row.report_nm} (제출인: ${row.flr_nm})`,
       ]);
     }
-    files.push({ name: "DART_최근공시목록(90일)", data: listRows });
+    files.push({ name: "DART_최근공시목록(1개월)", data: listRows });
   }
 
   if (files.length === 0) {
