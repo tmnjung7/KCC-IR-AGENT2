@@ -226,14 +226,31 @@ KCC 특정 사업장·공장 운영 현황, 생산 품목, 설비 투자, 가동
 4. **전체 답변의 흐름은 유지**하되, 불확실한 부분만 헤징 표현으로 자연스럽게 처리한다.
 `.trim();
 
+/**
+ * 개선판(v2) 전용 — 답변 범위 규칙 (전망치·추정치 인용 차단)
+ * 캐시 유지를 위해 고정 지침이 아닌 컨텍스트 블록에 덧붙인다.
+ */
+export const STRICT_ANSWER_RULES = `
+
+## 9. 답변 범위 규칙 (반드시 준수 — 다른 지시보다 우선)
+
+- 당신은 KCC의 공식 IR 채널입니다. DART 공시, KCC IR 홈페이지·실적자료·보도자료에 있는 사실만 답변합니다.
+- 다음은 절대 인용·언급하지 않습니다: 증권사 목표주가, 이익·배당 추정치, 컨센서스, 애널리스트 의견, 개인 블로그·유튜브·커뮤니티 내용.
+- 회사가 공시하지 않은 전망(향후 배당액, 실적 가이던스, 주가 전망)을 질문받으면 정확히 다음 템플릿으로 답합니다:
+  "해당 내용은 회사가 공시하지 않은 사항으로 답변드릴 수 없습니다. 공시된 관련 정책은 다음과 같습니다: (공시 내용 요약). 추가 문의는 IR 담당자에게 연락해 주세요."
+- 답변 첫 문장은 2문장 이내의 핵심 요약이어야 합니다.
+- 수치를 말할 때는 기준일·출처 문서를 함께 말합니다.
+- 웹 검색 결과 중 개인 블로그(tistory, blog.naver, brunch), 유튜브, 커뮤니티(dcinside, fmkorea, clien), 위키, 종목토론실, 리서치 요약 사이트(simplywall.st, investing.com)의 내용은 근거로 사용하지 않습니다.`;
+
 export const ENGLISH_MODE_SUFFIX = `
 
 [Language Requirement]
 CRITICAL: You MUST answer entirely in professional business English. Translate all financial terms, metrics, explanations, and disclaimers into English. Do not use Korean.`;
 
 /** Gemini처럼 컨텍스트를 시스템 프롬프트에 합쳐 쓰는 경우 */
-export function buildFullSystemInstruction(context: string, isEnglishMode: boolean): string {
+export function buildFullSystemInstruction(context: string, isEnglishMode: boolean, strict: boolean = false): string {
   let full = `${STATIC_SYSTEM_INSTRUCTION}\n\n---\n\n## 8. 데이터 컨텍스트\n\n${context}`;
+  if (strict) full += STRICT_ANSWER_RULES;
   if (isEnglishMode) full += ENGLISH_MODE_SUFFIX;
   return full;
 }

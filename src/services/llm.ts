@@ -24,7 +24,8 @@ export const getAIResponse = async (
   provider: Provider = 'gemini',
   model: ModelTier = 'flash',
   isEnglishMode: boolean = false,
-  onChunk?: (text: string) => void
+  onChunk?: (text: string) => void,
+  strict: boolean = false // 개선판(v2): 전망치·추정치 인용 차단 규칙
 ) => {
   const MAX_RETRIES = 2;
 
@@ -40,7 +41,7 @@ export const getAIResponse = async (
           "Content-Type": "application/json",
           ...(adminToken ? { "x-admin-token": adminToken } : {}),
         },
-        body: JSON.stringify({ prompt, context, provider, model, isEnglishMode }),
+        body: JSON.stringify({ prompt, context, provider, model, isEnglishMode, strict }),
       });
 
       if (!response.ok) {
@@ -106,6 +107,58 @@ export const getAIResponse = async (
     }
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 출처 3계층 분류 (개선판 v2)
+//   dart: DART 공시 원문 / kcc: KCC 공식 IR 채널 / news: 주요 언론 / null: 제외
+// ─────────────────────────────────────────────────────────────────────────────
+export type SourceLevel = 'dart' | 'kcc' | 'news';
+
+export interface ClassifiedSource {
+  level: SourceLevel;
+  title: string;
+  url: string;
+  host: string;
+}
+
+const SOURCE_BLACKLIST = [
+  'tistory.com', 'blog.naver.com', 'blog.daum', 'brunch.co.kr', 'post.naver.com',
+  'youtube.com', 'youtu.be', 'dcinside.com', 'fmkorea.com', 'clien.net',
+  'wikipedia.org', 'namu.wiki', 'simplywall.st', 'investing.com', 'tradingview.com',
+  'cafe.naver.com', 'cafe.daum.net', 'stockplus', 'paxnet', 'fnlist',
+];
+
+export function classifySources(groundingMetadata: any): { sources: ClassifiedSource[]; hasOfficial: boolean } {
+  const chunks: any[] = Array.isArray(groundingMetadata?.groundingChunks) ? groundingMetadata.groundingChunks : [];
+  const sources: ClassifiedSource[] = [];
+  const seen = new Set<string>();
+
+  for (const chunk of chunks) {
+    const uri: string = chunk?.web?.uri || '';
+    if (!uri || seen.has(uri)) continue;
+    seen.add(uri);
+
+    let host = '';
+    try { host = new URL(uri).hostname.replace(/^www\./, ''); } catch { continue; }
+    const lower = (uri + ' ' + host).toLowerCase();
+    if (SOURCE_BLACKLIST.some(b => lower.includes(b))) continue;
+
+    let level: SourceLevel = 'news';
+    if (lower.includes('dart.fss.or.kr') || lower.includes('opendart')) level = 'dart';
+    else if (lower.includes('kccworld') || lower.includes('irpage.co.kr')) level = 'kcc';
+
+    sources.push({ level, title: chunk.web.title || host, url: uri, host });
+  }
+
+  // dart → kcc → news 순 정렬, 계층별 최대 4개
+  const order: SourceLevel[] = ['dart', 'kcc', 'news'];
+  const sorted: ClassifiedSource[] = [];
+  for (const lv of order) {
+    sorted.push(...sources.filter(s => s.level === lv).slice(0, 4));
+  }
+  const hasOfficial = sorted.some(s => s.level === 'dart' || s.level === 'kcc');
+  return { sources: sorted, hasOfficial };
+}
 
 /** 화면 표시용 모델명 */
 export const modelDisplayName = (provider: Provider, tier: ModelTier): string => {

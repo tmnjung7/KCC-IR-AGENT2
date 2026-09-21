@@ -788,6 +788,11 @@ export default function App() {
               </button>
             </div>
 
+            <div className="hidden md:flex items-center bg-zinc-100/80 p-0.5 rounded-full border border-black/5 text-[11px] font-bold shrink-0">
+              <span className="px-2.5 py-1 rounded-full bg-white text-kcc-navy shadow-sm">오리지널</span>
+              <a href="/v2" className="px-2.5 py-1 rounded-full text-zinc-400 hover:text-zinc-600">개선판</a>
+            </div>
+
             <button
               onClick={handleAdminToggle}
               className={cn(
