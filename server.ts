@@ -4,8 +4,8 @@ import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import "dotenv/config";
-import { streamChat, availableProviders, type ChatRequest } from "./api/_lib/llm";
-import { fetchDartDataset, DartError } from "./api/_lib/dart";
+import { streamChat, availableProviders, type ChatRequest } from "./api/_lib/llm.js";
+import { fetchDartDataset, DartError } from "./api/_lib/dart.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

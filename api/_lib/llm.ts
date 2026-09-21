@@ -17,7 +17,7 @@ import {
   ENGLISH_MODE_SUFFIX,
   buildFullSystemInstruction,
   shouldUseSearch,
-} from "./prompt";
+} from "./prompt.js";
 
 export type Provider = "gemini" | "claude";
 export type ModelTier = "lite" | "flash" | "pro";
