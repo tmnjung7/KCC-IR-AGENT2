@@ -192,7 +192,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(550);
+  const [sidebarWidth, setSidebarWidth] = useState(460);
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
   const [isEnglishMode, setIsEnglishMode] = useState(false);
@@ -947,36 +947,38 @@ export default function App() {
 
           <aside
             className={cn(
-              "w-full bg-white/40 p-4 lg:p-5 flex flex-col shrink-0 overflow-y-auto border-l border-black/5 scrollbar-hide transition-all duration-300",
+              "w-full bg-white/40 p-4 flex flex-col shrink-0 overflow-y-auto border-l border-black/5 scrollbar-hide transition-all duration-300",
               activeTab !== 'dashboard' && "hidden lg:flex"
             )}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
           >
             {quote && (
-              <div className="mb-4 bg-white rounded-xl shadow-sm border border-black/5 p-3 flex items-center justify-between">
+              <div className="mb-3 bg-gradient-to-r from-kcc-navy to-[#0044B8] rounded-xl shadow-md shadow-kcc-navy/15 px-3.5 py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <img src="/kcc-logo.png" alt="" className="h-5 w-auto" />
+                  <div className="bg-white rounded-md px-1.5 py-1 flex items-center">
+                    <img src="/kcc-logo.png" alt="" className="h-4 w-auto" />
+                  </div>
                   <div>
-                    <p className="text-[11px] font-bold text-zinc-700">
-                      {quote.name} <span className="text-zinc-400 font-medium">{quote.code}</span>
+                    <p className="text-[11px] font-bold text-white leading-tight">
+                      {quote.name} <span className="text-white/50 font-medium">{quote.code}</span>
                     </p>
-                    <p className="text-[9px] text-zinc-400">
+                    <p className="text-[9px] text-white/50">
                       {new Date(quote.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 기준 · {quote.source}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-[17px] font-black text-kcc-navy leading-tight">
-                    {quote.price.toLocaleString()}<span className="text-[10px] font-bold text-zinc-400 ml-0.5">원</span>
+                  <p className="text-[16px] font-black text-white leading-tight">
+                    {quote.price.toLocaleString()}<span className="text-[10px] font-bold text-white/50 ml-0.5">원</span>
                   </p>
-                  <p className={cn("text-[10px] font-bold", quote.change >= 0 ? "text-red-500" : "text-blue-500")}>
+                  <p className={cn("text-[10px] font-bold", quote.change >= 0 ? "text-red-300" : "text-sky-300")}>
                     {quote.change >= 0 ? '▲' : '▼'} {Math.abs(quote.change).toLocaleString()} ({quote.changePct >= 0 ? '+' : ''}{quote.changePct}%)
                   </p>
                 </div>
               </div>
             )}
 
-            <section className="mb-5">
+            <section className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest flex items-center gap-1.5">
                   <Activity size={12} className="text-kcc-sky" /> {kpiYear}년 주요 실적 지표
@@ -995,22 +997,22 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white p-3 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
-                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">매출액</p>
+                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-0.5">매출액</p>
                   <span className="text-[15px] font-black text-kcc-navy">
                     {dartSummary?.revenue !== null && dartSummary?.revenue !== undefined ? formatKrw(dartSummary.revenue) : '6.48조'}
                   </span>
                   <YoyBadge value={dartSummary?.yoy.revenue ?? null} />
                 </div>
-                <div className="bg-white p-3 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
-                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">영업이익</p>
+                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-0.5">영업이익</p>
                   <span className="text-[15px] font-black text-kcc-navy">
                     {dartSummary?.operatingProfit !== null && dartSummary?.operatingProfit !== undefined ? formatKrw(dartSummary.operatingProfit) : '4,276억'}
                   </span>
                   <YoyBadge value={dartSummary?.yoy.operatingProfit ?? null} />
                 </div>
-                <div className="bg-white p-3 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
-                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-1">자산총계</p>
+                <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-0.5">자산총계</p>
                   <span className="text-[15px] font-black text-kcc-navy">
                     {dartSummary?.totalAssets !== null && dartSummary?.totalAssets !== undefined ? formatKrw(dartSummary.totalAssets) : '16.8조'}
                   </span>
@@ -1019,7 +1021,7 @@ export default function App() {
               </div>
 
               {dartSummary && dartSummary.debtRatioTrend.length >= 2 && (
-                <div className="mt-3 bg-white p-3 rounded-xl shadow-sm border border-black/5">
+                <div className="mt-2 bg-white px-3 py-2.5 rounded-xl shadow-sm border border-black/5">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-[9px] text-zinc-500 font-bold uppercase flex items-center gap-1">
                       <BarChart3 size={10} className="text-kcc-sky" /> 부채비율 추이 (연결)
@@ -1028,7 +1030,7 @@ export default function App() {
                       {dartSummary.debtRatioTrend[dartSummary.debtRatioTrend.length - 1].value}%
                     </span>
                   </div>
-                  <div className="h-24">
+                  <div className="h-16">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={dartSummary.debtRatioTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                         <defs>
@@ -1053,23 +1055,24 @@ export default function App() {
             </section>
 
             {news.length > 0 && (
-              <section className="mb-5">
+              <section className="mb-4">
                 <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                   <Newspaper size={12} className="text-kcc-sky" /> KCC 주요 뉴스
                 </h2>
-                <div className="bg-white rounded-xl border border-black/5 shadow-sm p-1.5 max-h-52 overflow-y-auto scrollbar-hide divide-y divide-black/[0.04]">
+                <div className="bg-white rounded-xl border border-black/5 shadow-sm p-1 max-h-40 overflow-y-auto scrollbar-hide divide-y divide-black/[0.04]">
                   {news.map((n, i) => (
                     <a
                       key={i}
                       href={n.link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block px-2 py-2 rounded-lg hover:bg-kcc-navy/5 transition-colors"
+                      className="flex items-baseline gap-2 px-2 py-1.5 rounded-lg hover:bg-kcc-navy/5 transition-colors"
                     >
-                      <p className="text-[11px] font-bold text-zinc-700 leading-snug line-clamp-2">{n.title}</p>
-                      <p className="text-[9px] text-zinc-400 mt-0.5">
-                        {n.date ? n.date.slice(5).replace('-', '.') : ''}{n.source ? ` · ${n.source}` : ''}
-                      </p>
+                      <span className="text-[9px] text-zinc-400 font-mono shrink-0">
+                        {n.date ? n.date.slice(5).replace('-', '.') : ''}
+                      </span>
+                      <span className="text-[11px] font-bold text-zinc-700 leading-snug truncate flex-1">{n.title}</span>
+                      {n.source && <span className="text-[9px] text-zinc-400 shrink-0 hidden xl:inline">{n.source}</span>}
                     </a>
                   ))}
                 </div>
@@ -1077,7 +1080,7 @@ export default function App() {
             )}
 
             <section className="flex-1 min-h-0 overflow-hidden flex flex-col">
-              <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-2 flex items-center gap-2">
                 <TrendingUp size={12} className="text-kcc-sky" /> 자주 하는 질문
               </h2>
               <div className="space-y-2 overflow-y-auto pr-1 scrollbar-hide flex-1">
