@@ -4,11 +4,11 @@ import App from './App.tsx';
 import AppV2 from './AppV2.tsx';
 import './index.css';
 
-// /v2 → 개선판, 그 외 → 오리지널 (양쪽 헤더의 전환 탭으로 이동)
-const isV2 = window.location.pathname.startsWith('/v2');
+// 메인(/) = 개선판. 오리지널은 /original (구 /v2 주소도 개선판으로 연결)
+const isOriginal = window.location.pathname.startsWith('/original') || window.location.pathname.startsWith('/v1');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isV2 ? <AppV2 /> : <App />}
+    {isOriginal ? <App /> : <AppV2 />}
   </StrictMode>,
 );

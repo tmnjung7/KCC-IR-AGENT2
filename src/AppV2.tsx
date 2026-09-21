@@ -362,7 +362,7 @@ export default function AppV2() {
 
   const VersionSwitch = () => (
     <div className="flex items-center bg-zinc-100 p-0.5 rounded-full border border-black/5 text-[11px] font-bold shrink-0">
-      <a href="/" className="px-2.5 py-1 rounded-full text-zinc-400 hover:text-zinc-600">오리지널</a>
+      <a href="/original" className="px-2.5 py-1 rounded-full text-zinc-400 hover:text-zinc-600">오리지널</a>
       <span className="px-2.5 py-1 rounded-full bg-[#253983] text-white shadow-sm">개선판</span>
     </div>
   );
