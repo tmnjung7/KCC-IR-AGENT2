@@ -171,7 +171,7 @@ export default function AppV2() {
   const [feedTab, setFeedTab] = useState<'news' | 'dart'>('news');
   const [provider, setProvider] = useState<Provider>('gemini');
   const [providerAvail, setProviderAvail] = useState<ProviderAvailability>({ gemini: true, claude: false, dart: false });
-  const [tier, setTier] = useState<ModelTier>('lite'); // 빠른 답변 기본
+  const [tier, setTier] = useState<ModelTier>('flash'); // 오리지널과 동일 (상세 답변 = FLASH)
   const [isEnglishMode, setIsEnglishMode] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showNotice, setShowNotice] = useState(() => {
@@ -278,7 +278,7 @@ export default function AppV2() {
           if (chunkCount === 1) setIsLoading(false);
           setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + chunk } : m));
         },
-        true // strict
+        false // 답변 로직은 오리지널과 동일하게 유지 (디자인만 개선)
       );
       const { sources, hasOfficial } = classifySources(responseData?.groundingMetadata);
       setMessages(prev => prev.map(m => m.id === assistantId ? {
