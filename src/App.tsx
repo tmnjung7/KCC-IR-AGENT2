@@ -167,7 +167,7 @@ export default function App() {
     {
       id: '1',
       role: 'assistant',
-      content: 'KCC의 가치를 믿고 동행해 주시는 주주님, 진심으로 환영합니다. 우측의 [자주 찾는 질문]을 클릭하시거나, 하단에 궁금하신 내용을 직접 입력해 주세요.',
+      content: 'KCC IR:ON에 오신 것을 환영합니다. KCC의 가치를 믿고 동행해 주시는 주주님께 DART 공시 데이터 기반으로 정확하게 답변드립니다. 우측의 [자주 찾는 질문]을 클릭하시거나, 하단에 궁금하신 내용을 직접 입력해 주세요.',
       timestamp: new Date(),
     }
   ]);
@@ -192,7 +192,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(460);
+  // 화면 폭의 약 30% (440~620px)로 시작해 어떤 모니터에서도 균형 유지, 드래그로 조절 가능
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window === 'undefined') return 520;
+    return Math.min(620, Math.max(440, Math.round(window.innerWidth * 0.3)));
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
   const [isEnglishMode, setIsEnglishMode] = useState(false);
@@ -665,9 +669,11 @@ export default function App() {
           <div className="flex items-center gap-3 lg:gap-4">
             <img src="/kcc-logo.png" alt="KCC" className="h-8 lg:h-10 w-auto shrink-0 select-none" draggable={false} />
             <div className="min-w-0">
-              <h1 className="text-sm lg:text-lg font-extrabold tracking-tight text-kcc-navy truncate">KCC IR AI 어시스턴트</h1>
+              <h1 className="text-sm lg:text-lg font-extrabold tracking-tight text-kcc-navy truncate">
+                KCC IR<span className="text-kcc-sky">:</span>ON
+              </h1>
               <div className="hidden lg:flex items-center gap-2">
-                <p className="text-[10px] text-zinc-500 font-medium">재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.</p>
+                <p className="text-[10px] text-zinc-500 font-medium">DART 공시 데이터 기반 AI 투자자 소통 서비스</p>
                 {isDataLoading && (
                   <span className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded-full">
                     <Loader2 size={9} className="animate-spin" /> 데이터 동기화 중
@@ -934,7 +940,7 @@ export default function App() {
               </div>
             </div>
             <p className="text-center text-[8px] lg:text-[10px] text-zinc-400 mb-2 lg:mb-3 font-medium uppercase tracking-widest px-4">
-              Fact-based IR Assistant powered by DART Open API & {modelDisplayName(provider, selectedModel)}
+              KCC IR:ON · Powered by DART Open API & {modelDisplayName(provider, selectedModel)}
             </p>
           </div>
 
