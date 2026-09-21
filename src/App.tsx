@@ -159,10 +159,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
-  // 화면 폭의 약 30% (440~620px)로 시작해 어떤 모니터에서도 균형 유지, 드래그로 조절 가능
+  // 화면 폭의 약 36% (480~760px)로 시작해 어떤 모니터에서도 균형 유지, 드래그로 조절 가능
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    if (typeof window === 'undefined') return 520;
-    return Math.min(620, Math.max(440, Math.round(window.innerWidth * 0.3)));
+    if (typeof window === 'undefined') return 600;
+    return Math.min(760, Math.max(480, Math.round(window.innerWidth * 0.36)));
   });
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
@@ -225,7 +225,7 @@ export default function App() {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
       const newWidth = window.innerWidth - e.clientX - 16;
-      if (newWidth >= 300 && newWidth <= 900) {
+      if (newWidth >= 300 && newWidth <= 1000) {
         setSidebarWidth(newWidth);
       }
     };
