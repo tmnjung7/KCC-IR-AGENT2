@@ -161,6 +161,13 @@ const CollapsibleBody = ({ content }: { content: string }) => {
 export default function AppV2() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingTime, setLoadingTime] = useState(0);
+
+  useEffect(() => {
+    if (!isLoading) { setLoadingTime(0); return; }
+    const iv = setInterval(() => setLoadingTime(t => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, [isLoading]);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [allFileData, setAllFileData] = useState<{ name: string, data: any[] }[]>([]);
   const [dartSummary, setDartSummary] = useState<DartSummary | null>(null);
@@ -472,12 +479,22 @@ export default function AppV2() {
                         </div>
                       )}
                       {msg.content === '' && msg.kind === 'ai' ? (
-                        <span className="inline-flex gap-1.5 py-1">
-                          {[0, 1, 2].map(i => (
-                            <motion.i key={i} className="w-2 h-2 rounded-full bg-[#C7D2FE] inline-block"
-                              animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 1, delay: i * 0.15 }} />
-                          ))}
-                        </span>
+                        <div className="flex flex-col gap-2 py-0.5">
+                          <div className="flex items-center gap-3 text-zinc-600 text-[13px]">
+                            <Loader2 size={16} className="animate-spin text-[#0B57D0]" />
+                            <span className="font-bold">
+                              {loadingTime < 3 ? 'DART 공시 및 내부 IR 데이터를 검색하고 있습니다...'
+                                : loadingTime < 6 ? '최신 외부 기사와 증권사 리포트를 분석 중입니다...'
+                                : loadingTime < 9 ? '데이터를 종합하여 답변을 생성하고 있습니다...'
+                                : '심층 분석 중입니다. 잠시만 기다려 주세요...'}
+                            </span>
+                            <span className="text-[10px] bg-black/5 px-1.5 py-0.5 rounded text-zinc-500 font-mono">{loadingTime}s</span>
+                          </div>
+                          <div className="text-[11px] text-zinc-500 pl-7 flex items-center gap-1.5">
+                            <span className="inline-block w-1 h-1 bg-[#0B57D0] rounded-full animate-pulse" />
+                            심층 분석 및 외부 데이터 검색으로 인해 <span className="font-bold" style={{ color: CI.navy }}>약 30초 ~ 1분</span> 정도 소요될 수 있습니다.
+                          </div>
+                        </div>
                       ) : (
                         <CollapsibleBody content={msg.content} />
                       )}
