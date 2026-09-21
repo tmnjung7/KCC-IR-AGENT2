@@ -127,8 +127,59 @@ async function dartJsonOrNull(endpoint: string, params: Record<string, string>):
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 고유번호(corp_code) 조회 — corpCode.xml(zip)에서 종목코드로 검색, /tmp에 캐시
+// 고유번호(corp_code) 조회
+//  1) DART_CORP_CODE 환경변수  2) /tmp 캐시
+//  3) 최근 정기공시 목록(list.json)에서 종목코드 매칭 — 전체 파일 다운로드 불필요
+//  4) corpCode.xml(zip) 전체 파일 — 최후 폴백
 // ─────────────────────────────────────────────────────────────────────────────
+async function resolveViaRecentFilings(apiKey: string, stockCode: string): Promise<{ corpCode: string; corpName: string } | null> {
+  const fmtDate = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const end = new Date();
+  const begin = new Date(end.getTime() - 150 * 24 * 60 * 60 * 1000);
+  const baseParams = {
+    crtfc_key: apiKey,
+    bgn_de: fmtDate(begin),
+    end_de: fmtDate(end),
+    pblntf_ty: "A", // 정기공시(사업·반기·분기보고서) — 상장사는 최소 분기마다 제출
+    corp_cls: "Y",  // 유가증권시장
+    page_count: "100",
+  };
+
+  const findInPage = (json: any): { corpCode: string; corpName: string } | null => {
+    for (const row of json?.list || []) {
+      if (String(row.stock_code || "").trim() === stockCode && row.corp_code) {
+        return { corpCode: String(row.corp_code), corpName: String(row.corp_name || "KCC") };
+      }
+    }
+    return null;
+  };
+
+  try {
+    const first = await dartJsonOrNull("list.json", { ...baseParams, page_no: "1" });
+    if (!first) return null;
+    const hit = findInPage(first);
+    if (hit) return hit;
+
+    const totalPages = Math.min(Number(first.total_page) || 1, 40);
+    if (totalPages <= 1) return null;
+    const pagePromises: Promise<any | null>[] = [];
+    for (let p = 2; p <= totalPages; p++) {
+      pagePromises.push(dartJsonOrNull("list.json", { ...baseParams, page_no: String(p) }).catch(() => null));
+    }
+    const pages = await Promise.all(pagePromises);
+    for (const page of pages) {
+      const found = findInPage(page);
+      if (found) return found;
+    }
+    return null;
+  } catch (e: any) {
+    // 인증키 오류 등은 그대로 전달해 원인을 명확히 보여준다
+    if (e instanceof DartError && ["010", "011", "012", "020"].includes(e.status || "")) throw e;
+    return null;
+  }
+}
+
 async function resolveCorpCode(apiKey: string): Promise<{ corpCode: string; corpName: string }> {
   const envCode = (process.env.DART_CORP_CODE || "").trim();
   if (/^\d{8}$/.test(envCode)) {
@@ -141,6 +192,13 @@ async function resolveCorpCode(apiKey: string): Promise<{ corpCode: string; corp
     const cached = JSON.parse(fs.readFileSync(cachePath, "utf-8"));
     if (cached?.corpCode) return cached;
   } catch { /* 캐시 없음 */ }
+
+  // 가벼운 방식 우선: 최근 정기공시 목록에서 종목코드 매칭 (JSON 몇 번 호출로 끝)
+  const viaList = await resolveViaRecentFilings(apiKey, stockCode);
+  if (viaList) {
+    try { fs.writeFileSync(cachePath, JSON.stringify(viaList), "utf-8"); } catch { /* 무시 */ }
+    return viaList;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60000);

@@ -30,7 +30,7 @@ export interface DartDataset {
 // DART 전자공시 데이터 자동 수집 (서버가 6시간 캐시)
 export const fetchDartData = async (): Promise<DartDataset> => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  const timeoutId = setTimeout(() => controller.abort(), 75000);
   try {
     const response = await fetch('/api/dart-data', { signal: controller.signal });
     if (!response.ok) {
@@ -38,6 +38,11 @@ export const fetchDartData = async (): Promise<DartDataset> => {
       throw new Error(err.error || `DART 데이터 로드 실패 (${response.status})`);
     }
     return await response.json();
+  } catch (e: any) {
+    if (e?.name === 'AbortError' || String(e?.message || '').includes('abort')) {
+      throw new Error('DART 데이터 수집이 시간 초과되었습니다. 잠시 후 새로고침하면 캐시된 데이터로 빠르게 로드됩니다.');
+    }
+    throw e;
   } finally {
     clearTimeout(timeoutId);
   }
