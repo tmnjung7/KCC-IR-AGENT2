@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import "dotenv/config";
 import { streamChat, availableProviders, type ChatRequest } from "./api/_lib/llm.js";
 import { fetchDartDataset, DartError } from "./api/_lib/dart.js";
+import { fetchNews, fetchQuote } from "./api/_lib/market.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +36,25 @@ async function startServer() {
       console.error("[DART] Fetch error:", error);
       const status = error instanceof DartError ? 502 : 500;
       res.status(status).json({ error: error.message || "DART 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  });
+
+  // ── KCC 뉴스 / 실시간 주가 ───────────────────────────────────────────────
+  app.get("/api/news", async (_req, res) => {
+    try {
+      res.json(await fetchNews());
+    } catch (error: any) {
+      console.error("[News] Fetch error:", error);
+      res.status(502).json({ error: error.message || "뉴스를 가져오는 중 오류가 발생했습니다." });
+    }
+  });
+
+  app.get("/api/quote", async (_req, res) => {
+    try {
+      res.json(await fetchQuote());
+    } catch (error: any) {
+      console.error("[Quote] Fetch error:", error);
+      res.status(502).json({ error: error.message || "주가 정보를 가져오는 중 오류가 발생했습니다." });
     }
   });
 
