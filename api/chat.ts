@@ -1,4 +1,4 @@
-import { streamChat, type ChatRequest } from "./_lib/llm";
+import { streamChat, type ChatRequest } from "./_lib/llm.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {

@@ -1,4 +1,7 @@
-import { fetchDartDataset, DartError } from "./_lib/dart";
+import { fetchDartDataset, DartError } from "./_lib/dart.js";
+
+// DART 첫 수집은 고유번호 파일(10MB) 다운로드 포함으로 기본 10초 제한을 넘을 수 있음
+export const config = { maxDuration: 60 };
 
 export default async function handler(req: any, res: any) {
   try {

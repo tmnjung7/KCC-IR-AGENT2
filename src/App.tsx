@@ -169,6 +169,7 @@ export default function App() {
   const [providerAvail, setProviderAvail] = useState<ProviderAvailability>({ gemini: true, claude: false, dart: false });
   const [dartSummary, setDartSummary] = useState<DartSummary | null>(null);
   const [dartStatus, setDartStatus] = useState<'loading' | 'ok' | 'off'>('loading');
+  const [dartError, setDartError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
@@ -276,9 +277,11 @@ export default function App() {
       merged.push(...dartResult.value.files);
       setDartSummary(dartResult.value.summary);
       setDartStatus('ok');
+      setDartError(null);
     } else {
       console.warn('DART 데이터 로드 실패 (CSV 폴백):', dartResult.reason);
       setDartStatus('off');
+      setDartError(dartResult.reason?.message || 'DART 연동에 실패했습니다.');
     }
 
     if (csvResult.status === 'fulfilled') {
@@ -621,7 +624,10 @@ export default function App() {
                   </span>
                 )}
                 {dartStatus === 'off' && (
-                  <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-full">
+                  <span
+                    className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-full cursor-help"
+                    title={dartError || 'DART 연동 실패 사유를 확인할 수 없습니다.'}
+                  >
                     <AlertCircle size={9} /> 수동 데이터 모드
                   </span>
                 )}

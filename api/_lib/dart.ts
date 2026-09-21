@@ -245,18 +245,71 @@ export async function fetchDartDataset(options?: { force?: boolean }): Promise<D
     lastSync: new Date().toISOString(),
   };
 
+  // ── 모든 DART 요청을 병렬로 시작 (서버리스 함수 시간 제한 대응) ──────────
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const listEnd = new Date();
+  const listBegin = new Date(listEnd.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  const majorP = dartJsonOrNull("fnlttSinglAcnt.json", {
+    crtfc_key: apiKey,
+    corp_code: corpCode,
+    bsns_year: String(latestAnnualYear),
+    reprt_code: REPRT.ANNUAL,
+  });
+  const quarterReprts = [REPRT.Q3, REPRT.HALF, REPRT.Q1];
+  const quarterPs = quarterReprts.map((reprt) =>
+    dartJsonOrNull("fnlttSinglAcnt.json", {
+      crtfc_key: apiKey,
+      corp_code: corpCode,
+      bsns_year: String(thisYear),
+      reprt_code: reprt,
+    }).catch(() => null)
+  );
+  const idxJobs: { year: number; clsName: string; p: Promise<any | null> }[] = [];
+  for (let y = latestAnnualYear - 1; y <= latestAnnualYear; y++) {
+    for (const cls of IDX_CLASSES) {
+      idxJobs.push({
+        year: y,
+        clsName: cls.name,
+        p: dartJsonOrNull("fnlttSinglIndx.json", {
+          crtfc_key: apiKey,
+          corp_code: corpCode,
+          bsns_year: String(y),
+          reprt_code: REPRT.ANNUAL,
+          idx_cl_code: cls.code,
+        }).catch(() => null),
+      });
+    }
+  }
+  const divJobs: { year: number; p: Promise<any | null> }[] = [];
+  for (let y = latestAnnualYear - 2; y <= latestAnnualYear; y++) {
+    divJobs.push({
+      year: y,
+      p: dartJsonOrNull("alotMatter.json", {
+        crtfc_key: apiKey,
+        corp_code: corpCode,
+        bsns_year: String(y),
+        reprt_code: REPRT.ANNUAL,
+      }).catch(() => null),
+    });
+  }
+  const listP = dartJsonOrNull("list.json", {
+    crtfc_key: apiKey,
+    corp_code: corpCode,
+    bgn_de: fmt(listBegin),
+    end_de: fmt(listEnd),
+    page_no: "1",
+    page_count: "30",
+  }).catch(() => null);
+
   // ── 1) 주요계정 (연결/개별, 당기·전기·전전기 3개년이 한 번에 제공됨) ──────
   const majorRows: string[][] = [
     ["연도", "보고서", "재무제표구분", "재무제표종류", "항목", "수치", "단위", "설명"],
   ];
   const majorByYear: Record<string, Record<string, number | null>> = {}; // 연결 기준 요약(백만원)
 
-  const major = await dartJsonOrNull("fnlttSinglAcnt.json", {
-    crtfc_key: apiKey,
-    corp_code: corpCode,
-    bsns_year: String(latestAnnualYear),
-    reprt_code: REPRT.ANNUAL,
-  });
+  const major = await majorP;
 
   if (major?.list) {
     for (const row of major.list) {
@@ -330,13 +383,10 @@ export async function fetchDartDataset(options?: { force?: boolean }): Promise<D
   const quarterRows: string[][] = [
     ["연도", "보고서", "재무제표구분", "재무제표종류", "항목", "수치", "단위", "설명"],
   ];
-  for (const reprt of [REPRT.Q3, REPRT.HALF, REPRT.Q1]) {
-    const q = await dartJsonOrNull("fnlttSinglAcnt.json", {
-      crtfc_key: apiKey,
-      corp_code: corpCode,
-      bsns_year: String(thisYear),
-      reprt_code: reprt,
-    }).catch(() => null);
+  const quarterResults = await Promise.all(quarterPs);
+  for (let qi = 0; qi < quarterReprts.length; qi++) {
+    const reprt = quarterReprts[qi];
+    const q = quarterResults[qi];
     if (q?.list?.length) {
       for (const row of q.list) {
         const millions = toMillions(row.thstrm_amount);
@@ -360,38 +410,26 @@ export async function fetchDartDataset(options?: { force?: boolean }): Promise<D
 
   // ── 3) 주요 재무지표 (수익성/안정성/성장성/활동성) ───────────────────────
   const idxRows: string[][] = [["연도", "지표분류", "지표명", "수치", "단위", "설명"]];
-  for (let y = latestAnnualYear - 1; y <= latestAnnualYear; y++) {
-    for (const cls of IDX_CLASSES) {
-      const idx = await dartJsonOrNull("fnlttSinglIndx.json", {
-        crtfc_key: apiKey,
-        corp_code: corpCode,
-        bsns_year: String(y),
-        reprt_code: REPRT.ANNUAL,
-        idx_cl_code: cls.code,
-      }).catch(() => null);
-      if (!idx?.list) continue;
-      for (const row of idx.list) {
-        const val = toNumber(row.thstrm_amount ?? row.idx_val);
-        if (val === null) continue;
-        const idxName = String(row.idx_nm || "").trim();
-        idxRows.push([
-          String(y), cls.name, idxName, String(val), "%",
-          `${y}년 ${cls.name} 기준 ${idxName}은(는) ${val}입니다. (출처: DART 재무지표)`,
-        ]);
-      }
+  for (const job of idxJobs) {
+    const idx = await job.p;
+    if (!idx?.list) continue;
+    for (const row of idx.list) {
+      const val = toNumber(row.thstrm_amount ?? row.idx_val);
+      if (val === null) continue;
+      const idxName = String(row.idx_nm || "").trim();
+      idxRows.push([
+        String(job.year), job.clsName, idxName, String(val), "%",
+        `${job.year}년 ${job.clsName} 기준 ${idxName}은(는) ${val}입니다. (출처: DART 재무지표)`,
+      ]);
     }
   }
   if (idxRows.length > 1) files.push({ name: "DART_주요재무지표", data: idxRows });
 
   // ── 4) 배당에 관한 사항 ─────────────────────────────────────────────────
   const divRows: string[][] = [["연도", "구분", "항목", "수치", "설명"]];
-  for (let y = latestAnnualYear - 2; y <= latestAnnualYear; y++) {
-    const div = await dartJsonOrNull("alotMatter.json", {
-      crtfc_key: apiKey,
-      corp_code: corpCode,
-      bsns_year: String(y),
-      reprt_code: REPRT.ANNUAL,
-    }).catch(() => null);
+  for (const job of divJobs) {
+    const y = job.year;
+    const div = await job.p;
     if (!div?.list) continue;
     for (const row of div.list) {
       const se = String(row.se || "").trim();
@@ -411,18 +449,7 @@ export async function fetchDartDataset(options?: { force?: boolean }): Promise<D
   if (divRows.length > 1) files.push({ name: "DART_배당현황", data: divRows });
 
   // ── 5) 최근 공시 목록 (최근 90일, 최대 30건) ────────────────────────────
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  const end = new Date();
-  const begin = new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const list = await dartJsonOrNull("list.json", {
-    crtfc_key: apiKey,
-    corp_code: corpCode,
-    bgn_de: fmt(begin),
-    end_de: fmt(end),
-    page_no: "1",
-    page_count: "30",
-  }).catch(() => null);
+  const list = await listP;
   if (list?.list?.length) {
     const listRows: string[][] = [["접수일자", "보고서명", "제출인", "공시뷰어링크", "설명"]];
     for (const row of list.list) {
