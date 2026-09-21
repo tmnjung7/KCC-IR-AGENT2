@@ -159,10 +159,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'dashboard'>('chat');
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
-  // 화면 폭의 약 36% (480~760px)로 시작해 어떤 모니터에서도 균형 유지, 드래그로 조절 가능
+  // 화면 폭의 약 42% (520~860px)로 시작해 어떤 모니터에서도 균형 유지, 드래그로 조절 가능
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    if (typeof window === 'undefined') return 600;
-    return Math.min(760, Math.max(480, Math.round(window.innerWidth * 0.36)));
+    if (typeof window === 'undefined') return 680;
+    return Math.min(860, Math.max(520, Math.round(window.innerWidth * 0.42)));
   });
   const [isDragging, setIsDragging] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
@@ -972,8 +972,8 @@ export default function App() {
 
             <section className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest flex items-center gap-1.5">
-                  <Activity size={12} className="text-kcc-sky" /> {kpiYear}년 주요 실적 지표
+                <h2 className="text-[14px] font-extrabold text-kcc-navy flex items-center gap-1.5">
+                  <Activity size={15} className="text-kcc-sky" /> {kpiYear}년 주요 실적 지표
                 </h2>
                 <div className="flex items-center gap-1.5">
                   {dartStatus === 'ok' && dartSummary && (
@@ -990,22 +990,22 @@ export default function App() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
-                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-0.5">매출액</p>
-                  <span className="text-[15px] font-black text-kcc-navy">
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-0.5">매출액</p>
+                  <span className="text-[16px] font-black text-kcc-navy">
                     {dartSummary?.revenue !== null && dartSummary?.revenue !== undefined ? formatKrw(dartSummary.revenue) : '6.48조'}
                   </span>
                   <YoyBadge value={dartSummary?.yoy.revenue ?? null} />
                 </div>
                 <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
-                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-0.5">영업이익</p>
-                  <span className="text-[15px] font-black text-kcc-navy">
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-0.5">영업이익</p>
+                  <span className="text-[16px] font-black text-kcc-navy">
                     {dartSummary?.operatingProfit !== null && dartSummary?.operatingProfit !== undefined ? formatKrw(dartSummary.operatingProfit) : '4,276억'}
                   </span>
                   <YoyBadge value={dartSummary?.yoy.operatingProfit ?? null} />
                 </div>
                 <div className="bg-white p-2.5 rounded-xl shadow-sm border border-black/5 flex flex-col items-center justify-center">
-                  <p className="text-[9px] text-zinc-500 font-bold uppercase mb-0.5">자산총계</p>
-                  <span className="text-[15px] font-black text-kcc-navy">
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-0.5">자산총계</p>
+                  <span className="text-[16px] font-black text-kcc-navy">
                     {dartSummary?.totalAssets !== null && dartSummary?.totalAssets !== undefined ? formatKrw(dartSummary.totalAssets) : '16.8조'}
                   </span>
                   <YoyBadge value={dartSummary?.yoy.totalAssets ?? null} />
@@ -1015,7 +1015,7 @@ export default function App() {
               {dartSummary && dartSummary.debtRatioTrend.length >= 2 && (
                 <div className="mt-2 bg-white px-3 py-2.5 rounded-xl shadow-sm border border-black/5">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-[9px] text-zinc-500 font-bold uppercase flex items-center gap-1">
+                    <p className="text-[10px] text-zinc-600 font-bold uppercase flex items-center gap-1">
                       <BarChart3 size={10} className="text-kcc-sky" /> 부채비율 추이 (연결)
                     </p>
                     <span className="text-[11px] font-black text-kcc-navy">
@@ -1048,8 +1048,8 @@ export default function App() {
 
             {news.length > 0 && (
               <section className="mb-4">
-                <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <Newspaper size={12} className="text-kcc-sky" /> KCC 주요 뉴스
+                <h2 className="text-[14px] font-extrabold text-kcc-navy mb-2 flex items-center gap-1.5">
+                  <Newspaper size={15} className="text-kcc-sky" /> KCC 주요 뉴스
                 </h2>
                 <div className="bg-white rounded-xl border border-black/5 shadow-sm p-1 max-h-40 overflow-y-auto scrollbar-hide divide-y divide-black/[0.04]">
                   {news.map((n, i) => (
@@ -1063,7 +1063,7 @@ export default function App() {
                       <span className="text-[9px] text-zinc-400 font-mono shrink-0">
                         {n.date ? n.date.slice(5).replace('-', '.') : ''}
                       </span>
-                      <span className="text-[11px] font-bold text-zinc-700 leading-snug truncate flex-1">{n.title}</span>
+                      <span className="text-[12px] font-bold text-zinc-700 leading-snug truncate flex-1">{n.title}</span>
                       {n.source && <span className="text-[9px] text-zinc-400 shrink-0 hidden xl:inline">{n.source}</span>}
                     </a>
                   ))}
@@ -1072,8 +1072,8 @@ export default function App() {
             )}
 
             <section className="flex-1 min-h-0 overflow-hidden flex flex-col">
-              <h2 className="text-[11px] font-bold text-zinc-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <TrendingUp size={12} className="text-kcc-sky" /> 자주 하는 질문
+              <h2 className="text-[14px] font-extrabold text-kcc-navy mb-2 flex items-center gap-1.5">
+                <TrendingUp size={15} className="text-kcc-sky" /> 자주 하는 질문
               </h2>
               <div className="space-y-2 overflow-y-auto pr-1 scrollbar-hide flex-1">
                 {faqAnswers.map((faq, idx) => (
@@ -1086,7 +1086,7 @@ export default function App() {
                       <div className="w-7 h-7 bg-kcc-sky/10 text-kcc-sky rounded-lg flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-colors">
                         {[<Database size={12} key={1} />, <TrendingUp size={12} key={2} />, <BarChart3 size={12} key={3} />, <AlertCircle size={12} key={4} />, <Settings size={12} key={5} />, <Activity size={12} key={6} />, <FileText size={12} key={7} />][idx % 7]}
                       </div>
-                      <span className="text-[12px] font-bold text-zinc-700 group-hover:text-white transition-colors text-left">{faq.question}</span>
+                      <span className="text-[13px] font-bold text-zinc-700 group-hover:text-white transition-colors text-left">{faq.question}</span>
                     </div>
                     <ChevronRight size={12} className="text-zinc-300 group-hover:text-white transition-colors shrink-0" />
                   </button>
