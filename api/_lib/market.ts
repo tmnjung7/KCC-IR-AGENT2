@@ -35,7 +35,7 @@ export interface Quote {
 
 // KCC 농구단 등 회사와 무관한 기사 제외 키워드
 const NEWS_BLOCKLIST = [
-  "농구", "KBL", "이지스", "프로농구", "배구", "야구", "골프단", "구단",
+  "농구", "KBL", "이지스", "프로농구", "배구", "야구", "골프단", "구단", "스폰서십",
   // 계열사·동명 이종 기사 제외
   "KCC글라스", "케이씨씨글라스", "KCC건설", "케이씨씨건설", "KCC정보통신", "KCC오토", "KCC캐피탈",
 ];
@@ -87,7 +87,10 @@ async function fetchNaverNews(): Promise<NewsItem[] | null> {
   const items: NewsItem[] = [];
   for (const it of json.items || []) {
     const title = decodeEntities(String(it.title || ""));
-    if (!title || NEWS_BLOCKLIST.some((b) => title.includes(b))) continue;
+    // 제목뿐 아니라 본문 요약에서도 스포츠단·계열사 키워드 검사
+    // (예: 농구단 스폰서십 기사는 제목에 KCC만 있고 본문에 '이지스'가 등장)
+    const desc = decodeEntities(String(it.description || ""));
+    if (!title || NEWS_BLOCKLIST.some((b) => title.includes(b) || desc.includes(b))) continue;
     let source = "";
     try { source = new URL(it.originallink || it.link).hostname.replace(/^www\./, ""); } catch { /* 무시 */ }
     items.push({
