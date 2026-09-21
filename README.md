@@ -1,6 +1,6 @@
-# KCC IR AI 어시스턴트
+# KCC IR:ON
 
-KCC(주) 주주·투자자를 위한 IR AI 챗봇입니다.
+KCC(주)의 AI 투자자 소통 서비스입니다. (구 KCC IR AI 어시스턴트)
 DART(금융감독원 전자공시시스템) Open API에서 재무 데이터를 **자동 수집**하고,
 Gemini 또는 Claude 모델로 답변을 생성합니다.
 

@@ -1,5 +1,5 @@
 {
-  "name": "KCC AI 주주지원 서비스",
-  "description": "KCC AI 주주 지원 서비스입니다. 재무 및 사업 부문 정보를 쉽고 빠르게 검색하세요.",
+  "name": "KCC IR:ON",
+  "description": "KCC IR:ON — DART 공시 데이터 기반 AI 투자자 소통 서비스. 재무·사업 정보를 쉽고 빠르게 확인하세요.",
   "requestFramePermissions": []
 }
