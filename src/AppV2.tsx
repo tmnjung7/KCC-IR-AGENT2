@@ -391,15 +391,14 @@ export default function AppV2() {
               <Landmark size={10} /> DART 연동 · {new Date(dartSummary.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <div className="hidden md:flex items-center bg-zinc-100 p-1 rounded-full text-[11px] font-bold"
-            title="빠른 답변: FAQ·공시 기반 즉답 / 상세 답변: 여러 공시를 종합해 답변">
+          <div className="hidden md:flex items-center bg-zinc-100 p-1 rounded-full text-[11px] font-bold">
             <button onClick={() => setTier('lite')}
-              className={cn('px-3 py-1.5 rounded-full transition-all', tier === 'lite' ? 'bg-white text-[#253983] shadow-sm' : 'text-zinc-400')}>
-              빠른 답변
+              className={cn('px-3 py-1.5 rounded-full transition-all', tier === 'lite' ? 'bg-green-500 text-white shadow-sm' : 'text-zinc-400')}>
+              LITE
             </button>
             <button onClick={() => setTier('flash')}
-              className={cn('px-3 py-1.5 rounded-full transition-all', tier === 'flash' ? 'bg-white text-[#253983] shadow-sm' : 'text-zinc-400')}>
-              상세 답변
+              className={cn('px-3 py-1.5 rounded-full transition-all', tier === 'flash' ? 'bg-[#0B57D0] text-white shadow-sm' : 'text-zinc-400')}>
+              FLASH
             </button>
           </div>
           {providerAvail.claude && (
